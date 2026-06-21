@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AutoClicker</string>
+    <string name="accessibility_description">AutoClicker 自动点击服务，用于执行自动化操作（点击、输入、滚动等）。本服务仅响应本地 HTTP API 指令，不收集任何数据。</string>
+</resources>
