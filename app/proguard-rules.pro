@@ -1,4 +1,3 @@
-# AutoClicker ProGuard Rules
 -keep class com.autoclicker.app.model.** { *; }
 -keep class com.autoclicker.app.server.HttpServerService$* { *; }
 -keepattributes Signature
