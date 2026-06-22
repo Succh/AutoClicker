@@ -1,9 +1,6 @@
 package com.autoclicker.app
 
 import android.os.Bundle
-import android.widget.ArrayAdapter
-import android.widget.EditText
-import android.widget.Spinner
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -14,7 +11,6 @@ import com.autoclicker.app.model.Action
 import com.autoclicker.app.model.ActionType
 import com.autoclicker.app.model.AutoConfig
 import com.autoclicker.app.storage.ConfigStorage
-import com.google.gson.Gson
 
 class ConfigEditActivity : AppCompatActivity() {
 
@@ -28,10 +24,9 @@ class ConfigEditActivity : AppCompatActivity() {
         binding = ActivityConfigEditBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        title = "编辑配置"
+
         storage = ConfigStorage.getInstance(this)
-        setSupportActionBar(binding.toolbar)
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
-        supportActionBar?.title = "编辑配置"
 
         val configId = intent.getStringExtra("config_id")
         config = configId?.let { storage.getConfig(it) }
@@ -117,16 +112,15 @@ class ConfigEditActivity : AppCompatActivity() {
         val config = config ?: return
 
         val dialogView = layoutInflater.inflate(R.layout.dialog_action_detail, null)
-        val etTarget = dialogView.findViewById<EditText>(R.id.et_target)
-        val etValue = dialogView.findViewById<EditText>(R.id.et_value)
-        val etDelay = dialogView.findViewById<EditText>(R.id.et_delay)
-        val etTimeout = dialogView.findViewById<EditText>(R.id.et_timeout)
-        val etDesc = dialogView.findViewById<EditText>(R.id.et_action_desc)
+        val etTarget = dialogView.findViewById<android.widget.EditText>(R.id.et_target)
+        val etValue = dialogView.findViewById<android.widget.EditText>(R.id.et_value)
+        val etDelay = dialogView.findViewById<android.widget.EditText>(R.id.et_delay)
+        val etTimeout = dialogView.findViewById<android.widget.EditText>(R.id.et_timeout)
+        val etDesc = dialogView.findViewById<android.widget.EditText>(R.id.et_action_desc)
 
         etDelay.setText("500")
         etTimeout.setText("10000")
 
-        // 根据类型设置提示
         when (type) {
             ActionType.CLICK_TEXT -> etTarget.hint = "要点击的文字"
             ActionType.CLICK_ID -> etTarget.hint = "资源ID (如 com.xxx:id/btn)"
