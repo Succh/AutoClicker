@@ -23,8 +23,6 @@ class ConfigEditActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityConfigEditBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        setSupportActionBar(binding.toolbar)
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
         title = "编辑配置"
         storage = ConfigStorage.getInstance(this)
         val configId = intent.getStringExtra("config_id") ?: return
@@ -61,7 +59,7 @@ class ConfigEditActivity : AppCompatActivity() {
                 }
             },
             onToggle = { pos, enabled ->
-                config.actions[pos].enabled = enabled
+                config.actions[pos] = config.actions[pos].copy(enabled = enabled)
             }
         )
         binding.recyclerViewActions.layoutManager = LinearLayoutManager(this)
@@ -159,6 +157,4 @@ class ConfigEditActivity : AppCompatActivity() {
             .setNegativeButton("取消", null)
             .show()
     }
-
-    override fun onSupportNavigateUp(): Boolean { finish(); return true }
 }
