@@ -3,6 +3,7 @@ package com.autoclicker.app.fragment
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -12,6 +13,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.autoclicker.app.ConfigEditActivity
 import com.autoclicker.app.R
 import com.autoclicker.app.adapter.ConfigAdapter
 import com.autoclicker.app.databinding.FragmentConfigListBinding
@@ -52,15 +54,8 @@ class ConfigListFragment : Fragment() {
         binding.recyclerView.layoutManager = LinearLayoutManager(requireContext())
         binding.recyclerView.adapter = adapter
 
-        // 新建按钮
-        binding.fab.setOnClickListener {
-            showCreateDialog()
-        }
-
-        // 导入按钮
-        binding.btnImport.setOnClickListener {
-            showImportDialog()
-        }
+        binding.fab.setOnClickListener { showCreateDialog() }
+        binding.btnImport.setOnClickListener { showImportDialog() }
     }
 
     override fun onResume() {
@@ -79,7 +74,6 @@ class ConfigListFragment : Fragment() {
             Toast.makeText(requireContext(), "引擎未就绪", Toast.LENGTH_SHORT).show()
             return
         }
-
         if (engine.isRunning(config.id)) {
             engine.stopConfig(config.id)
             Toast.makeText(requireContext(), "已停止: ${config.name}", Toast.LENGTH_SHORT).show()
@@ -170,35 +164,24 @@ class ConfigListFragment : Fragment() {
         refreshList()
     }
 
-    // ==================== 快速模板 ====================
-
     private fun createDingTalkTemplate() {
         val config = AutoConfig(
             name = "钉钉打卡",
             description = "自动打开钉钉并执行打卡操作",
             loopCount = 1,
             actions = mutableListOf(
-                Action(type = ActionType.LAUNCH_APP, target = "com.alibaba.android.rimet", delayMs = 1000,
-                    description = "打开钉钉"),
-                Action(type = ActionType.WAIT_TEXT, target = "工作台", timeoutMs = 15000,
-                    description = "等待首页加载"),
-                Action(type = ActionType.CLICK_TEXT, target = "工作台", delayMs = 1000,
-                    description = "点击工作台"),
-                Action(type = ActionType.WAIT_TEXT, target = "打卡", timeoutMs = 10000,
-                    description = "等待打卡入口出现"),
-                Action(type = ActionType.CLICK_TEXT, target = "打卡", delayMs = 2000,
-                    description = "点击打卡"),
-                Action(type = ActionType.WAIT_TEXT, target = "上班打卡", timeoutMs = 10000,
-                    description = "等待打卡页面"),
-                Action(type = ActionType.CLICK_TEXT, target = "上班打卡", delayMs = 1000,
-                    description = "点击上班打卡"),
-                Action(type = ActionType.COMMENT, target = "注意: 钉钉打卡可能有定位/WiFi限制，需要根据实际情况调整等待时间",
-                    description = "提醒")
+                Action(type = ActionType.LAUNCH_APP, target = "com.alibaba.android.rimet", delayMs = 1000, description = "打开钉钉"),
+                Action(type = ActionType.WAIT_TEXT, target = "工作台", timeoutMs = 15000, description = "等待首页加载"),
+                Action(type = ActionType.CLICK_TEXT, target = "工作台", delayMs = 1000, description = "点击工作台"),
+                Action(type = ActionType.WAIT_TEXT, target = "打卡", timeoutMs = 10000, description = "等待打卡入口出现"),
+                Action(type = ActionType.CLICK_TEXT, target = "打卡", delayMs = 2000, description = "点击打卡"),
+                Action(type = ActionType.WAIT_TEXT, target = "上班打卡", timeoutMs = 10000, description = "等待打卡页面"),
+                Action(type = ActionType.CLICK_TEXT, target = "上班打卡", delayMs = 1000, description = "点击上班打卡"),
+                Action(type = ActionType.COMMENT, target = "注意: 钉钉打卡可能有定位/WiFi限制", description = "提醒")
             )
         )
         storage.saveConfig(config)
         refreshList()
-        Toast.makeText(requireContext(), "已创建钉钉打卡模板，请根据实际情况修改", Toast.LENGTH_LONG).show()
     }
 
     private fun createWechatTemplate() {
@@ -207,12 +190,9 @@ class ConfigListFragment : Fragment() {
             description = "自动打开微信执行签到",
             loopCount = 1,
             actions = mutableListOf(
-                Action(type = ActionType.LAUNCH_APP, target = "com.tencent.mm", delayMs = 2000,
-                    description = "打开微信"),
-                Action(type = ActionType.CLICK_TEXT, target = "我", delayMs = 1000,
-                    description = "点击我"),
-                Action(type = ActionType.CLICK_TEXT, target = "服务", delayMs = 1000,
-                    description = "点击服务"),
+                Action(type = ActionType.LAUNCH_APP, target = "com.tencent.mm", delayMs = 2000, description = "打开微信"),
+                Action(type = ActionType.CLICK_TEXT, target = "我", delayMs = 1000, description = "点击我"),
+                Action(type = ActionType.CLICK_TEXT, target = "服务", delayMs = 1000, description = "点击服务"),
             )
         )
         storage.saveConfig(config)
@@ -225,15 +205,10 @@ class ConfigListFragment : Fragment() {
             description = "简单模板：启动指定App",
             loopCount = 1,
             actions = mutableListOf(
-                Action(type = ActionType.LAUNCH_APP, target = "输入包名",
-                    description = "启动应用（请修改包名）")
+                Action(type = ActionType.LAUNCH_APP, target = "输入包名", description = "启动应用（请修改包名）")
             )
         )
         storage.saveConfig(config)
         refreshList()
     }
 }
-
-// Intent import (at the top of file, but since Kotlin file only has one class, add here)
-import android.content.Intent
-import com.autoclicker.app.ConfigEditActivity

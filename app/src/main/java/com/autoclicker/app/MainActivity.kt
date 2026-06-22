@@ -6,10 +6,8 @@ import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
 import android.text.TextUtils
-import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.autoclicker.app.databinding.ActivityMainBinding
 import com.autoclicker.app.fragment.ConfigListFragment
@@ -25,10 +23,8 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-
         setSupportActionBar(binding.toolbar)
 
-        // 底部导航
         binding.bottomNav.setOnItemSelectedListener { item ->
             when (item.itemId) {
                 R.id.nav_configs -> loadFragment(ConfigListFragment())
@@ -37,12 +33,10 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // 默认页面
         if (savedInstanceState == null) {
             loadFragment(ConfigListFragment())
         }
 
-        // 检查无障碍服务状态
         checkAccessibility()
     }
 
@@ -74,19 +68,15 @@ class MainActivity : AppCompatActivity() {
     private fun updateStatus() {
         val accEnabled = isAccessibilityServiceEnabled(this, AccessibilityClickService::class.java)
         val serverRunning = HttpServerService.isRunning
-
         binding.statusText.text = buildString {
             append("无障碍: ${if (accEnabled) "✅" else "❌"}")
-            append("  |  ")
+            append(" | ")
             append("HTTP服务: ${if (serverRunning) "✅ :${HttpServerService.port}" else "❌"}")
         }
     }
 
     companion object {
-        fun isAccessibilityServiceEnabled(
-            context: Context,
-            serviceClass: Class<AccessibilityClickService>
-        ): Boolean {
+        fun isAccessibilityServiceEnabled(context: Context, serviceClass: Class<*>): Boolean {
             val serviceName = ComponentName(context, serviceClass).flattenToString()
             val enabledServices = Settings.Secure.getString(
                 context.contentResolver,
