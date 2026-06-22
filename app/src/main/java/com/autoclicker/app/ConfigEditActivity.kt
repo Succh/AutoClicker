@@ -1,6 +1,7 @@
 package com.autoclicker.app
 
 import android.os.Bundle
+import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -13,7 +14,6 @@ import com.autoclicker.app.model.AutoConfig
 import com.autoclicker.app.storage.ConfigStorage
 
 class ConfigEditActivity : AppCompatActivity() {
-
     private lateinit var binding: ActivityConfigEditBinding
     private lateinit var storage: ConfigStorage
     private var config: AutoConfig? = null
@@ -23,18 +23,14 @@ class ConfigEditActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityConfigEditBinding.inflate(layoutInflater)
         setContentView(binding.root)
-
+        setSupportActionBar(binding.toolbar)
+        supportActionBar?.setDisplayHomeAsUpEnabled(true)
         title = "编辑配置"
-
         storage = ConfigStorage.getInstance(this)
-
-        val configId = intent.getStringExtra("config_id")
-        config = configId?.let { storage.getConfig(it) }
-
+        val configId = intent.getStringExtra("config_id") ?: return
+        config = storage.getConfig(configId)
         config?.let { loadConfig(it) }
-
         binding.fabAddAction.setOnClickListener { showAddActionDialog() }
-
         binding.btnSave.setOnClickListener { saveConfig() }
     }
 
@@ -43,120 +39,126 @@ class ConfigEditActivity : AppCompatActivity() {
         binding.etDesc.setText(config.description)
         binding.etLoops.setText(config.loopCount.toString())
         binding.etLoopDelay.setText(config.loopDelayMs.toString())
-
         actionAdapter = ActionAdapter(
-            actions = config.actions.toMutableList(),
-            onDelete = { index ->
-                config.actions.removeAt(index)
+            actions = config.actions,
+            onDelete = { pos ->
+                config.actions.removeAt(pos)
                 actionAdapter.notifyDataSetChanged()
+                updateEmptyState()
             },
-            onMoveUp = { index ->
-                if (index > 0) {
-                    val temp = config.actions[index]
-                    config.actions[index] = config.actions[index - 1]
-                    config.actions[index - 1] = temp
-                    actionAdapter.notifyDataSetChanged()
+            onMoveUp = { pos ->
+                if (pos > 0) {
+                    val item = config.actions.removeAt(pos)
+                    config.actions.add(pos - 1, item)
+                    actionAdapter.notifyItemMoved(pos, pos - 1)
                 }
             },
-            onMoveDown = { index ->
-                if (index < config.actions.size - 1) {
-                    val temp = config.actions[index]
-                    config.actions[index] = config.actions[index + 1]
-                    config.actions[index + 1] = temp
-                    actionAdapter.notifyDataSetChanged()
+            onMoveDown = { pos ->
+                if (pos < config.actions.size - 1) {
+                    val item = config.actions.removeAt(pos)
+                    config.actions.add(pos + 1, item)
+                    actionAdapter.notifyItemMoved(pos, pos + 1)
                 }
             },
-            onToggle = { index, enabled ->
-                config.actions[index] = config.actions[index].copy(enabled = enabled)
+            onToggle = { pos, enabled ->
+                config.actions[pos].enabled = enabled
             }
         )
-
         binding.recyclerViewActions.layoutManager = LinearLayoutManager(this)
         binding.recyclerViewActions.adapter = actionAdapter
+        updateEmptyState()
+    }
+
+    private fun updateEmptyState() {
+        if (config?.actions.isNullOrEmpty()) {
+            binding.emptyActionsHint.visibility = View.VISIBLE
+            binding.recyclerViewActions.visibility = View.GONE
+        } else {
+            binding.emptyActionsHint.visibility = View.GONE
+            binding.recyclerViewActions.visibility = View.VISIBLE
+        }
     }
 
     private fun saveConfig() {
         val name = binding.etName.text.toString().trim()
         if (name.isEmpty()) {
-            Toast.makeText(this, "请输入名称", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "请输入配置名称", Toast.LENGTH_SHORT).show()
             return
         }
-
-        val current = config ?: return
-        val updated = current.copy(
-            name = name,
-            description = binding.etDesc.text.toString().trim(),
-            loopCount = binding.etLoops.text.toString().toIntOrNull() ?: 1,
-            loopDelayMs = binding.etLoopDelay.text.toString().toLongOrNull() ?: 1000
-        )
-
-        storage.saveConfig(updated)
-        Toast.makeText(this, "已保存", Toast.LENGTH_SHORT).show()
-        finish()
+        config?.let { current ->
+            val updated = current.copy(
+                name = name,
+                description = binding.etDesc.text.toString().trim(),
+                loopCount = binding.etLoops.text.toString().toIntOrNull() ?: 1,
+                loopDelayMs = binding.etLoopDelay.text.toString().toLongOrNull() ?: 1000L,
+                actions = current.actions,
+                updatedAt = System.currentTimeMillis()
+            )
+            storage.saveConfig(updated)
+            Toast.makeText(this, "已保存", Toast.LENGTH_SHORT).show()
+            finish()
+        }
     }
 
     private fun showAddActionDialog() {
-        val types = ActionType.values()
-        val typeNames = types.map { it.name }.toTypedArray()
-
+        val types = arrayOf(
+            "启动应用", "点击文字", "点击资源ID", "点击坐标",
+            "输入文字", "向指定ID输入", "等待文字出现", "等待ID出现",
+            "等待文字消失", "向下滑动", "向上滑动", "滑动操作",
+            "返回", "回到桌面", "注释"
+        )
+        val typeValues = arrayOf(
+            ActionType.LAUNCH_APP, ActionType.CLICK_TEXT, ActionType.CLICK_ID,
+            ActionType.CLICK坐标, ActionType.INPUT_TEXT, ActionType.INPUT_ID,
+            ActionType.WAIT_TEXT, ActionType.WAIT_ID, ActionType.WAIT_GONE,
+            ActionType.SCROLL_DOWN, ActionType.SCROLL_UP, ActionType.SWIPE,
+            ActionType.BACK, ActionType.HOME, ActionType.COMMENT
+        )
         AlertDialog.Builder(this)
-            .setTitle("添加动作")
-            .setItems(typeNames) { _, which ->
-                val type = types[which]
-                showActionDetailDialog(type)
-            }
+            .setTitle("选择动作类型")
+            .setItems(types) { _, which -> showActionDetailDialog(typeValues[which]) }
             .show()
     }
 
     private fun showActionDetailDialog(type: ActionType) {
-        val config = config ?: return
-
-        val dialogView = layoutInflater.inflate(R.layout.dialog_action_detail, null)
-        val etTarget = dialogView.findViewById<android.widget.EditText>(R.id.et_target)
-        val etValue = dialogView.findViewById<android.widget.EditText>(R.id.et_value)
-        val etDelay = dialogView.findViewById<android.widget.EditText>(R.id.et_delay)
-        val etTimeout = dialogView.findViewById<android.widget.EditText>(R.id.et_timeout)
-        val etDesc = dialogView.findViewById<android.widget.EditText>(R.id.et_action_desc)
-
-        etDelay.setText("500")
-        etTimeout.setText("10000")
-
+        val dv = layoutInflater.inflate(R.layout.dialog_action_detail, null)
+        val etT = dv.findViewById<android.widget.EditText>(R.id.et_target)
+        val etV = dv.findViewById<android.widget.EditText>(R.id.et_value)
+        val etD = dv.findViewById<android.widget.EditText>(R.id.et_delay)
+        val etO = dv.findViewById<android.widget.EditText>(R.id.et_timeout)
+        etD.setText("500"); etO.setText("10000")
         when (type) {
-            ActionType.CLICK_TEXT -> etTarget.hint = "要点击的文字"
-            ActionType.CLICK_ID -> etTarget.hint = "资源ID (如 com.xxx:id/btn)"
-            ActionType.CLICK坐标 -> etTarget.hint = "x坐标"
-            ActionType.INPUT_TEXT -> etTarget.hint = "要输入的文字"
-            ActionType.INPUT_ID -> etTarget.hint = "输入框ID"
-            ActionType.LAUNCH_APP -> etTarget.hint = "包名 (如 com.tencent.mm)"
-            ActionType.WAIT_TEXT -> etTarget.hint = "要等待出现的文字"
-            ActionType.WAIT_ID -> etTarget.hint = "要等待出现的ID"
-            ActionType.WAIT_GONE -> etTarget.hint = "要等待消失的文字"
-            ActionType.SWIPE -> etTarget.hint = "起始x,y"
-            ActionType.COMMENT -> etTarget.hint = "注释内容"
-            else -> etTarget.hint = "参数"
+            ActionType.CLICK_TEXT -> { etT.hint = "要点击的文字"; etV.visibility = View.GONE }
+            ActionType.CLICK_ID -> { etT.hint = "资源ID"; etV.visibility = View.GONE }
+            ActionType.CLICK坐标 -> { etT.hint = "x坐标"; etV.hint = "y坐标" }
+            ActionType.INPUT_TEXT -> { etT.hint = "无需填写"; etV.hint = "要输入的文字" }
+            ActionType.INPUT_ID -> { etT.hint = "输入框ID"; etV.hint = "要输入的文字" }
+            ActionType.LAUNCH_APP -> { etT.hint = "包名 (如 com.tencent.mm)"; etV.visibility = View.GONE }
+            ActionType.WAIT_TEXT -> { etT.hint = "等待出现的文字"; etV.visibility = View.GONE }
+            ActionType.WAIT_ID -> { etT.hint = "等待出现的ID"; etV.visibility = View.GONE }
+            ActionType.WAIT_GONE -> { etT.hint = "等待消失的文字"; etV.visibility = View.GONE }
+            ActionType.SWIPE -> { etT.hint = "起点x,y"; etV.hint = "终点x,y" }
+            ActionType.COMMENT -> { etT.hint = "注释内容"; etV.visibility = View.GONE }
+            else -> { etT.hint = "目标"; etV.visibility = View.GONE }
         }
-
         AlertDialog.Builder(this)
-            .setTitle("配置: $type")
-            .setView(dialogView)
+            .setTitle("添加动作")
+            .setView(dv)
             .setPositiveButton("添加") { _, _ ->
-                val action = Action(
-                    type = type,
-                    target = etTarget.text.toString(),
-                    value = etValue.text.toString(),
-                    delayMs = etDelay.text.toString().toLongOrNull() ?: 500,
-                    timeoutMs = etTimeout.text.toString().toLongOrNull() ?: 10000,
-                    description = etDesc.text.toString()
+                val a = Action(
+                    type = type, target = etT.text.toString().trim(),
+                    value = etV.text.toString().trim(),
+                    delayMs = etD.text.toString().toLongOrNull() ?: 500L,
+                    timeoutMs = etO.text.toString().toLongOrNull() ?: 10000L
                 )
-                config.actions.add(action)
-                actionAdapter.notifyDataSetChanged()
+                config?.actions?.add(a)
+                actionAdapter.notifyItemInserted((config?.actions?.size ?: 1) - 1)
+                binding.recyclerViewActions.scrollToPosition((config?.actions?.size ?: 1) - 1)
+                updateEmptyState()
             }
             .setNegativeButton("取消", null)
             .show()
     }
 
-    override fun onSupportNavigateUp(): Boolean {
-        finish()
-        return true
-    }
+    override fun onSupportNavigateUp(): Boolean { finish(); return true }
 }
