@@ -2,7 +2,8 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:fillViewport="true">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -13,8 +14,8 @@
         <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="配置名称"
-            android:layout_marginBottom="12dp">
+            android:layout_marginBottom="8dp"
+            android:hint="配置名称">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/et_name"
@@ -26,15 +27,14 @@
         <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="描述（可选）"
-            android:layout_marginBottom="12dp">
+            android:layout_marginBottom="8dp"
+            android:hint="描述（可选）">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/et_desc"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="textMultiLine"
-                android:minLines="2" />
+                android:inputType="textMultiLine" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <LinearLayout
@@ -47,8 +47,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:hint="循环次数 (0=无限)"
-                android:layout_marginEnd="8dp">
+                android:layout_marginEnd="8dp"
+                android:hint="循环次数 (0=无限)">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/et_loops"
@@ -84,7 +84,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="📋 动作列表"
+                android:text="动作列表"
                 android:textSize="16sp"
                 android:textStyle="bold" />
 
@@ -92,10 +92,38 @@
                 android:id="@+id/fab_add_action"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_margin="0dp"
-                android:src="@android:drawable/ic_input_add"
+                android:layout_marginStart="8dp"
                 android:contentDescription="添加动作"
-                app:fabSize="mini" />
+                android:src="@android:drawable/ic_input_add"
+                app:fabSize="mini"
+                app:backgroundTint="#6200EE" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/empty_actions_hint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="32dp"
+            android:background="#F5F5F5"
+            android:layout_marginBottom="16dp"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="点击右上角 + 添加第一步动作"
+                android:textSize="15sp"
+                android:textColor="#666" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="动作会按顺序执行，比如：启动App -> 等待加载 -> 点击按钮"
+                android:textSize="12sp"
+                android:textColor="#999" />
         </LinearLayout>
 
         <androidx.recyclerview.widget.RecyclerView
@@ -103,14 +131,15 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:nestedScrollingEnabled="false"
-            android:layout_marginBottom="24dp" />
+            android:layout_marginBottom="16dp" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_save"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="💾 保存配置"
-            android:textSize="16sp" />
+            android:text="保存配置"
+            android:textSize="16sp"
+            android:padding="12dp" />
 
     </LinearLayout>
 </ScrollView>
