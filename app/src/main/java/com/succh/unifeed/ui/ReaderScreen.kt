@@ -1,7 +1,6 @@
 package com.succh.unifeed.ui
 
 import android.annotation.SuppressLint
-import android.graphics.Color
 import android.view.ViewGroup
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -92,7 +91,7 @@ fun ReaderScreen(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
-                    setBackgroundColor(Color.TRANSPARENT)
+                    setBackgroundColor(android.graphics.Color.TRANSPARENT)
                     settings.javaScriptEnabled = false
                     settings.loadWithOverviewMode = true
                     settings.useWideViewPort = true
