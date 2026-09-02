@@ -1,10 +1,14 @@
 package com.succh.unifeed.ui
 
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.KeyboardOptions
 
 @Composable
@@ -37,8 +41,8 @@ fun AddFeedDialog(
                 },
                 enabled = url.isNotBlank()
             ) {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = androidx.compose.ui.Modifier.size(16.dp))
-                Spacer(androidx.compose.foundation.layout.Spacer(androidx.compose.foundation.layout.width(4.dp)))
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(4.dp))
                 Text("添加")
             }
         },
