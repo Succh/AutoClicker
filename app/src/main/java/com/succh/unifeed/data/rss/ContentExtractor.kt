@@ -16,9 +16,13 @@ object ContentExtractor {
      */
     fun extract(html: String): String {
         return try {
-            val doc = Jsoup.parse(html)
-            val candidate = findMainContent(doc)
-            candidate ?: doc.body()?.html() ?: html
+            val candidate = findMainContent(Jsoup.parse(html))
+            if (candidate != null) {
+                candidate.html()
+            } else {
+                val bodyHtml = Jsoup.parse(html).body()?.html()
+                if (bodyHtml != null) bodyHtml else html
+            }
         } catch (_: Exception) {
             html
         }
