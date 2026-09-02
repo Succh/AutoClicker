@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.RssFeed
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -19,7 +20,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 fun AddFeedDialog(
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
-    onDiscover: (String) -> Unit
+    onDiscover: (String) -> Unit,
+    onRsshubBrowse: () -> Unit
 ) {
     var url by remember { mutableStateOf("") }
 
@@ -42,6 +44,12 @@ fun AddFeedDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                Spacer(Modifier.size(12.dp))
+                TextButton(onClick = onRsshubBrowse) {
+                    Icon(Icons.Default.RssFeed, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("浏览 RSSHub 精选分类，一键订阅")
+                }
             }
         },
         confirmButton = {
