@@ -4,6 +4,8 @@ import com.succh.unifeed.data.db.AppDatabase
 import com.succh.unifeed.data.db.entity.Entry
 import com.succh.unifeed.data.db.entity.Feed
 import com.succh.unifeed.data.model.ParsedFeed
+import com.succh.unifeed.data.rss.DiscoveredFeed
+import com.succh.unifeed.data.rss.FeedDiscovery
 import com.succh.unifeed.data.rss.RssParser
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -13,7 +15,8 @@ import kotlinx.coroutines.flow.first
  */
 class FeedRepository(
     private val db: AppDatabase,
-    private val parser: RssParser = RssParser()
+    private val parser: RssParser = RssParser(),
+    private val discovery: FeedDiscovery = FeedDiscovery()
 ) {
     private val feedDao = db.feedDao()
     private val entryDao = db.entryDao()
@@ -25,6 +28,17 @@ class FeedRepository(
     fun observeUnreadEntries(): Flow<List<Entry>> = entryDao.observeUnread()
     fun observeStarredEntries(): Flow<List<Entry>> = entryDao.observeStarred()
     fun observeUnreadCount(): Flow<Int> = entryDao.observeUnreadCount()
+
+    /**
+     * 订阅发现：输入任意网站地址，自动探测其 RSS/Atom 订阅源
+     */
+    suspend fun discoverFeeds(input: String): Result<List<DiscoveredFeed>> {
+        return try {
+            Result.success(discovery.discover(input))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 
     /**
      * 添加订阅源：抓取并解析，存入数据库
