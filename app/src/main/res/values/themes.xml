@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.UniFeed" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/primary</item>
+        <item name="android:navigationBarColor">@android:color/white</item>
+    </style>
+
+    <style name="Theme.UniFeed.Starting" parent="Theme.UniFeed">
+        <item name="android:windowBackground">@color/ic_launcher_background</item>
+    </style>
+</resources>
