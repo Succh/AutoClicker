@@ -77,7 +77,7 @@ fun ReaderScreen(
                 },
                 actions = {
                     IconButton(onClick = { showAaPanel = true }) {
-                        Icon(Icons.FormatSize, contentDescription = "阅读设置", tint = colors.onSurfaceVariant)
+                        Icon(Icons.Filled.FormatSize, contentDescription = "阅读设置", tint = colors.onSurfaceVariant)
                     }
                     IconButton(onClick = { onToggleStar(entry, !entry.isStarred) }) {
                         Icon(
