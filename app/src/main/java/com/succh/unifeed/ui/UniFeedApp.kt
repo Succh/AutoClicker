@@ -21,6 +21,7 @@ fun UniFeedApp(
     var showAddDialog by remember { mutableStateOf(false) }
     var selectedEntry by remember { mutableStateOf<Entry?>(null) }
     var discoverInput by remember { mutableStateOf("") }
+    var showRsshub by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
     if (showAddDialog) {
@@ -34,6 +35,19 @@ fun UniFeedApp(
             onDiscover = {
                 discoverInput = it
                 viewModel.discoverFeeds(it)
+            },
+            onRsshubBrowse = { showRsshub = true }
+        )
+    }
+
+    if (showRsshub) {
+        RsshubBrowserDialog(
+            onDismiss = { showRsshub = false },
+            onSubscribe = { url ->
+                viewModel.addFeed(url)
+                showRsshub = false
+                showAddDialog = false
+                viewModel.clearDiscovery()
             }
         )
     }
