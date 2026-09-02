@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.succh.unifeed.UniFeedApp
 import com.succh.unifeed.data.db.entity.Entry
 import com.succh.unifeed.data.db.entity.Feed
+import com.succh.unifeed.data.rss.DiscoveredFeed
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -16,7 +17,11 @@ data class UniFeedUiState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val selectedFeedId: Long? = null,
-    val filterMode: FilterMode = FilterMode.ALL
+    val filterMode: FilterMode = FilterMode.ALL,
+    // 发现状态
+    val isDiscovering: Boolean = false,
+    val discoveredFeeds: List<DiscoveredFeed> = emptyList(),
+    val discoveryError: String? = null
 )
 
 enum class FilterMode { ALL, UNREAD, STARRED }
@@ -54,6 +59,24 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
                 _uiState.update { it.copy(entries = filtered) }
             }
         }
+    }
+
+    /** 发现订阅源：输入任意 URL，自动探测 RSS/Atom */
+    fun discoverFeeds(input: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isDiscovering = true, discoveryError = null, discoveredFeeds = emptyList()) }
+            val result = repo.discoverFeeds(input)
+            result.onSuccess { feeds ->
+                _uiState.update { it.copy(isDiscovering = false, discoveredFeeds = feeds) }
+            }.onFailure { e ->
+                _uiState.update { it.copy(isDiscovering = false, discoveryError = e.message ?: "探测失败") }
+            }
+        }
+    }
+
+    /** 清除发现结果 */
+    fun clearDiscovery() {
+        _uiState.update { it.copy(isDiscovering = false, discoveredFeeds = emptyList(), discoveryError = null) }
     }
 
     fun addFeed(url: String) {
