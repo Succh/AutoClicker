@@ -39,10 +39,6 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
                 _uiState.update { it.copy(unreadCount = count) }
             }
         }
-        observeEntries()
-    }
-
-    private fun observeEntries() {
         viewModelScope.launch {
             combine(
                 repo.observeAllEntries(),
@@ -86,15 +82,15 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun markRead(entry: Entry) {
-        viewModelScope.launch {
-            repo.markRead(entry)
-        }
+        viewModelScope.launch { repo.markRead(entry) }
+    }
+
+    fun markUnread(entry: Entry) {
+        viewModelScope.launch { repo.markUnread(entry) }
     }
 
     fun setStarred(entry: Entry, starred: Boolean) {
-        viewModelScope.launch {
-            repo.setStarred(entry, starred)
-        }
+        viewModelScope.launch { repo.setStarred(entry, starred) }
     }
 
     fun selectFeed(feedId: Long?) {
@@ -108,23 +104,4 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
     fun clearError() {
         _uiState.update { it.copy(error = null) }
     }
-
-    // 用于 Repository 的额外操作委托
-    private suspend fun FeedRepository.markRead(entry: Entry) {
-        com.succh.unifeed.data.db.dao.EntryDao::class.java
-        // 实际通过 DAO 操作
-    }
-
-    private suspend fun FeedRepository.setStarred(entry: Entry, starred: Boolean) {
-        // 实际通过 DAO 操作
-    }
-}
-
-// 扩展 Repository 的辅助方法
-private suspend fun com.succh.unifeed.data.repository.FeedRepository.markRead(entry: Entry) {
-    // 通过 DAO 操作
-    com.succh.unifeed.UniFeedApp::class.java
-}
-
-private suspend fun com.succh.unifeed.data.repository.FeedRepository.setStarred(entry: Entry, starred: Boolean) {
 }
