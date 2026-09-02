@@ -40,7 +40,9 @@ jobs:
       - name: Build debug APK
         id: build
         continue-on-error: true
-        run: gradle assembleDebug --no-daemon --stacktrace 2>&1 | tee /tmp/build.log
+        run: |
+          set -o pipefail
+          gradle assembleDebug --no-daemon --stacktrace 2>&1 | tee /tmp/build.log
 
       - name: Report build failure as issue
         if: steps.build.outcome == 'failure'
@@ -48,7 +50,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           echo "Build failed. Creating diagnostic issue..."
-          { echo "## Build Failed (commit ${{ github.sha }})"; echo ""; echo '```'; tail -120 /tmp/build.log; echo '```'; } > /tmp/issue_body.md
+          { echo "## Build Failed (commit ${{ github.sha }})"; echo ""; echo '```'; tail -150 /tmp/build.log; echo '```'; } > /tmp/issue_body.md
           gh issue create --title "[CI] Build failed - $(date -u +%H:%M)" --body-file /tmp/issue_body.md
           exit 1
 
