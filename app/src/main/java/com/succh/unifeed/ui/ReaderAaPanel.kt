@@ -51,7 +51,7 @@ fun AaSettingsPanel(
 
             // 字号
             SettingRow(label = "字号") {
-                SizeButton("-") { prefs.fontSize = (prefs.fontSize - 1f).corceAtLeast(13f) }
+                SizeButton("-") { prefs.fontSize = (prefs.fontSize - 1f).coerceAtLeast(13f) }
                 Text("${prefs.fontSize.toInt()}px", modifier = Modifier.padding(horizontal = 12.dp))
                 SizeButton("+") { prefs.fontSize = (prefs.fontSize + 1f).coerceAtMost(24f) }
             }
@@ -78,7 +78,7 @@ fun AaSettingsPanel(
                             Text(
                                 when (t) {
                                     ReaderTheme.LIGHT -> "浅色"
-                                    ReaderTheme.SEPIA -> "糳黄"
+                                    ReaderTheme.SEPIA -> "米黄"
                                     ReaderTheme.DARK -> "夜间"
                                 },
                                 style = MaterialTheme.typography.labelSmall
