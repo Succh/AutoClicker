@@ -21,12 +21,42 @@ fun UniFeedApp(
     val state by viewModel.uiState.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
     var selectedEntry by remember { mutableStateOf<Entry?>(null) }
+    var discoverInput by remember { mutableStateOf("") }
     val context = LocalContext.current
 
     if (showAddDialog) {
         AddFeedDialog(
-            onDismiss = { showAddDialog = false },
-            onConfirm = { viewModel.addFeed(it) }
+            onDismiss = { showAddDialog = false; viewModel.clearDiscovery() },
+            onConfirm = {
+                viewModel.addFeed(it)
+                showAddDialog = false
+                viewModel.clearDiscovery()
+            },
+            onDiscover = {
+                discoverInput = it
+                viewModel.discoverFeeds(it)
+            }
+        )
+    }
+
+    // 发现流程状态：加载中 / 结果 / 错误
+    if (state.isDiscovering) {
+        FeedDiscoveryLoading()
+    } else if (state.discoveredFeeds.isNotEmpty()) {
+        FeedDiscoveryDialog(
+            discoveredFeeds = state.discoveredFeeds,
+            onDismiss = { viewModel.clearDiscovery() },
+            onConfirm = { feed ->
+                viewModel.addFeed(feed.feedUrl)
+                viewModel.clearDiscovery()
+                showAddDialog = false
+            }
+        )
+    } else if (state.discoveryError != null) {
+        FeedDiscoveryError(
+            message = state.discoveryError,
+            onDismiss = { viewModel.clearDiscovery() },
+            onRetry = { viewModel.discoverFeeds(discoverInput) }
         )
     }
 
