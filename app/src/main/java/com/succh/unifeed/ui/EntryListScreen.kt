@@ -26,6 +26,7 @@ fun EntryListScreen(
     entries: List<Entry>,
     onEntryClick: (Entry) -> Unit,
     onStarToggle: (Entry, Boolean) -> Unit,
+    showSummary: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     if (entries.isEmpty()) {
@@ -43,6 +44,7 @@ fun EntryListScreen(
             items(entries, key = { it.id }) { entry ->
                 EntryItem(
                     entry = entry,
+                    showSummary = showSummary,
                     onClick = { onEntryClick(entry) },
                     onStar = { onStarToggle(entry, !entry.isStarred) }
                 )
@@ -54,6 +56,7 @@ fun EntryListScreen(
 @Composable
 private fun EntryItem(
     entry: Entry,
+    showSummary: Boolean,
     onClick: () -> Unit,
     onStar: () -> Unit
 ) {
@@ -89,6 +92,16 @@ private fun EntryItem(
                     overflow = TextOverflow.Ellipsis,
                     fontWeight = if (entry.isRead) null else FontWeight.Bold
                 )
+                if (showSummary) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        entry.summary ?: "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
                 Spacer(Modifier.height(4.dp))
                 Text(
                     entry.author ?: "",
