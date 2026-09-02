@@ -6,6 +6,7 @@ import com.succh.unifeed.data.db.entity.Feed
 import com.succh.unifeed.data.model.ParsedFeed
 import com.succh.unifeed.data.rss.RssParser
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 
 /**
  * 订阅源仓库：统一管理订阅 CRUD 与抓取
@@ -75,11 +76,7 @@ class FeedRepository(
      * 刷新所有订阅源
      */
     suspend fun refreshAll() {
-        feedDao.observeAll().let {
-            // 获取当前快照
-        }
-        val feeds = getFeedsSnapshot()
-        feeds.forEach { refreshFeed(it.id) }
+        feedDao.observeAll().first().forEach { refreshFeed(it.id) }
     }
 
     /**
@@ -88,6 +85,28 @@ class FeedRepository(
     suspend fun deleteFeed(feed: Feed) {
         entryDao.deleteByFeed(feed.id)
         feedDao.delete(feed)
+    }
+
+    /**
+     * 阅读状态操作
+     */
+    suspend fun markRead(entry: Entry) {
+        entryDao.markRead(entry.id)
+        feedDao.updateUnreadCount(entry.feedId)
+    }
+
+    suspend fun markUnread(entry: Entry) {
+        entryDao.markUnread(entry.id)
+        feedDao.updateUnreadCount(entry.feedId)
+    }
+
+    suspend fun setStarred(entry: Entry, starred: Boolean) {
+        entryDao.setStarred(entry.id, starred)
+    }
+
+    suspend fun markAllRead(feedId: Long) {
+        entryDao.markAllRead(feedId)
+        feedDao.updateUnreadCount(feedId)
     }
 
     /**
@@ -113,19 +132,12 @@ class FeedRepository(
         }
     }
 
-    private suspend fun getFeedsSnapshot(): List<Feed> {
-        // Flow 首值取快照
-        return observeFeeds().let { flow ->
-            kotlinx.coroutines.flow.first(flow)
-        }
-    }
-
     private fun buildFaviconUrl(siteUrl: String): String {
         return try {
             val uri = android.net.Uri.parse(siteUrl)
             "https://icons.duckduckgo.com/ip3/${uri.host}.ico"
         } catch (_: Exception) {
-            null
-        } ?: ""
+            ""
+        }
     }
 }
