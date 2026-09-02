@@ -1,13 +1,12 @@
 package com.succh.unifeed.ui
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
+import android.annotation.SuppressLint
+import android.graphics.Color
+import android.view.ViewGroup
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.OpenInBrowser
@@ -15,7 +14,6 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -26,17 +24,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import com.succh.unifeed.data.db.entity.Entry
-import org.jsoup.Jsoup
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
+@SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun ReaderScreen(
     entry: Entry,
@@ -46,8 +39,14 @@ fun ReaderScreen(
     onShare: (Entry) -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
-    val contentText = remember(entry.content, entry.summary) {
-        htmlToText(entry.content ?: entry.summary ?: "")
+    val articleHtml = remember(entry.content, entry.summary) {
+        ArticleHtmlBuilder.build(
+            title = entry.title,
+            author = entry.author,
+            link = entry.link,
+            publishedAt = entry.publishedAt,
+            content = entry.content ?: entry.summary ?: ""
+        )
     }
 
     Scaffold(
@@ -83,83 +82,29 @@ fun ReaderScreen(
             )
         }
     ) { padding ->
-        Column(
+        AndroidView(
             modifier = Modifier
-                .padding(padding)
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 16.dp)
-        ) {
-            Text(
-                entry.title,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(Modifier.height(8.dp))
-            if (!entry.author.isNullOrBlank()) {
-                Text(
-                    entry.author,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = colors.onSurfaceVariant
-                )
-                Spacer(Modifier.height(2.dp))
+                .padding(padding),
+            factory = { ctx ->
+                WebView(ctx).apply {
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                    setBackgroundColor(Color.TRANSPARENT)
+                    settings.javaScriptEnabled = false
+                    settings.loadWithOverviewMode = true
+                    settings.useWideViewPort = true
+                    settings.domStorageEnabled = true
+                    settings.defaultTextEncodingName = "UTF-8"
+                    webViewClient = WebViewClient()
+                    loadDataWithBaseURL(null, articleHtml, "text/html", "UTF-8", null)
+                }
+            },
+            update = { webView ->
+                webView.loadDataWithBaseURL(null, articleHtml, "text/html", "UTF-8", null)
             }
-            Text(
-                formatFullTime(entry.publishedAt),
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.onSurfaceVariant
-            )
-            if (!entry.link.isNullOrBlank()) {
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    entry.link,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.primary,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            HorizontalDivider(Modifier.padding(vertical = 16.dp))
-            if (contentText.isBlank()) {
-                Text(
-                    "（无正文内容）",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = colors.onSurfaceVariant
-                )
-            } else {
-                Text(
-                    contentText,
-                    style = MaterialTheme.typography.bodyLarge,
-                    lineHeight = 26.sp
-                )
-            }
-        }
-    }
-}
-
-/**
- * 将 HTML 正文转为纯文本：剔除脚本/样式/广告节点后取 text()
- */
-private fun htmlToText(html: String): String {
-    if (html.isBlank()) return ""
-    return try {
-        if (html.trimStart().startsWith("<")) {
-            val doc = Jsoup.parse(html)
-            doc.select("script,style,ins,iframe,noscript").remove()
-            doc.text().trim()
-        } else {
-            html.trim()
-        }
-    } catch (_: Exception) {
-        html.trim()
-    }
-}
-
-private fun formatFullTime(timestamp: Long): String {
-    if (timestamp == 0L) return ""
-    return try {
-        SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(timestamp))
-    } catch (_: Exception) {
-        ""
+        )
     }
 }
