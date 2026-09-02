@@ -3,12 +3,12 @@ package com.succh.unifeed.ui
 import android.content.Intent
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.foundation.layout.*
@@ -21,6 +21,7 @@ fun UniFeedApp(
     val state by viewModel.uiState.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
     var selectedEntry by remember { mutableStateOf<Entry?>(null) }
+    val context = LocalContext.current
 
     if (showAddDialog) {
         AddFeedDialog(
@@ -37,7 +38,7 @@ fun UniFeedApp(
             onToggleStar = { e, s -> viewModel.setStarred(e, s) },
             onOpenBrowser = { e ->
                 e.link?.let {
-                    runCatching { androidx.compose.ui.platform.LocalContext.current.startActivity(Intent(Intent.ACTION_VIEW, it.toUri())) }
+                    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, it.toUri())) }
                 }
             },
             onShare = { e ->
@@ -45,7 +46,7 @@ fun UniFeedApp(
                     type = "text/plain"
                     putExtra(Intent.EXTRA_TEXT, "${e.title}\n${e.link}")
                 }
-                runCatching { androidx.compose.ui.platform.LocalContext.current.startActivity(Intent.createChooser(sendIntent, "分享")) }
+                runCatching { context.startActivity(Intent.createChooser(sendIntent, "分享")) }
             }
         )
     } else {
