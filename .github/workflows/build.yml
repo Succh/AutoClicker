@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   build:
@@ -37,9 +38,22 @@ jobs:
           echo "/tmp/gradle-8.11.1/bin" >> $GITHUB_PATH
 
       - name: Build debug APK
-        run: gradle assembleDebug --no-daemon --stacktrace
+        id: build
+        continue-on-error: true
+        run: gradle assembleDebug --no-daemon --stacktrace 2>&1 | tee /tmp/build.log
+
+      - name: Report build failure as issue
+        if: steps.build.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Build failed. Creating diagnostic issue..."
+          { echo "## Build Failed (commit ${{ github.sha }})"; echo ""; echo '```'; tail -120 /tmp/build.log; echo '```'; } > /tmp/issue_body.md
+          gh issue create --title "[CI] Build failed - $(date -u +%H:%M)" --body-file /tmp/issue_body.md
+          exit 1
 
       - name: Upload APK artifact
+        if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: unifeed-debug-apk
