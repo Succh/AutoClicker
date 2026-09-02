@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">UniFeed</string>
+    <string name="tab_all">全部</string>
+    <string name="tab_unread">未读</string>
+    <string name="tab_starred">收藏</string>
+    <string name="add_feed">添加订阅</string>
+    <string name="add_feed_hint">输入 RSS/Atom 订阅链接</string>
+    <string name="add">添加</string>
+    <string name="cancel">取消</string>
+    <string name="feeds">订阅源</string>
+    <string name="entries">文章</string>
+    <string name="settings">设置</string>
+    <string name="refresh">刷新</string>
+    <string name="empty_feeds">还没有订阅源</string>
+    <string name="empty_entries">暂无文章</string>
+    <string name="mark_all_read">全部标为已读</string>
+    <string name="open_in_browser">在浏览器打开</string>
+    <string name="share">分享</string>
+    <string name="star">收藏</string>
+    <string name="unstar">取消收藏</string>
+    <string name="mark_read">标为已读</string>
+    <string name="mark_unread">标为未读</string>
+    <string name="feed_title">订阅源</string>
+    <string name="loading">加载中</string>
+    <string name="error_fetch">获取失败</string>
+    <string name="auto_refresh">自动刷新</string>
+    <string name="dark_mode">深色模式</string>
+    <string name="follow_system">跟随系统</string>
+    <string name="about">关于</string>
+    <string name="version">版本</string>
+    <string name="no_connection">无网络连接</string>
+</resources>
