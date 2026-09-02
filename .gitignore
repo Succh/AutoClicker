@@ -1,11 +1,30 @@
-.gradle/
-build/
-app/build/
-local.properties
-.idea/
 *.iml
+.gradle
+/local.properties
+/.idea
 .DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+/app/build
+/app/release
 *.apk
 *.aab
 *.jks
 *.keystore
+
+# Gradle wrapper
+!gradle/wrapper/gradle-wrapper.jar
+
+# Google Services
+google-services.json
+firebase-secrets.json
+
+# IDE
+.idea/
+*.iml
+
+# OS
+.DS_Store
