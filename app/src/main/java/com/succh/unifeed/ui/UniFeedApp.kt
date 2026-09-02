@@ -1,16 +1,16 @@
 package com.succh.unifeed.ui
 
 import android.content.Intent
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.compose.foundation.layout.*
 import com.succh.unifeed.data.db.entity.Entry
 
 @Composable
@@ -23,6 +23,7 @@ fun UniFeedApp(
     var discoverInput by remember { mutableStateOf("") }
     var showRsshub by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val prefs = remember { ReaderPrefs(context) }
 
     if (showAddDialog) {
         AddFeedDialog(
@@ -77,6 +78,7 @@ fun UniFeedApp(
     if (entry != null) {
         ReaderScreen(
             entry = entry,
+            prefs = prefs,
             onBack = { selectedEntry = null },
             onToggleStar = { e, s -> viewModel.setStarred(e, s) },
             onOpenBrowser = { e ->
@@ -95,6 +97,7 @@ fun UniFeedApp(
     } else {
         MainTabScreen(
             state = state,
+            prefs = prefs,
             onSelectFeed = viewModel::selectFeed,
             onAddFeed = { showAddDialog = true },
             onDeleteFeed = viewModel::deleteFeed,
@@ -109,6 +112,7 @@ fun UniFeedApp(
 @Composable
 private fun MainTabScreen(
     state: UniFeedUiState,
+    prefs: ReaderPrefs,
     onSelectFeed: (Long?) -> Unit,
     onAddFeed: () -> Unit,
     onDeleteFeed: (com.succh.unifeed.data.db.entity.Feed) -> Unit,
@@ -140,6 +144,12 @@ private fun MainTabScreen(
                     icon = { Icon(Icons.Default.Star, contentDescription = null) },
                     label = { Text("收藏") }
                 )
+                NavigationBarItem(
+                    selected = tab == 3,
+                    onClick = { tab = 3 },
+                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                    label = { Text("设置") }
+                )
             }
         }
     ) { padding ->
@@ -156,12 +166,18 @@ private fun MainTabScreen(
                 entries = state.entries,
                 onEntryClick = onEntryClick,
                 onStarToggle = onStarToggle,
+                showSummary = prefs.listShowSummary,
                 modifier = Modifier.padding(padding)
             )
             2 -> EntryListScreen(
                 entries = state.entries.filter { it.isStarred },
                 onEntryClick = onEntryClick,
                 onStarToggle = onStarToggle,
+                showSummary = prefs.listShowSummary,
+                modifier = Modifier.padding(padding)
+            )
+            3 -> SettingsScreen(
+                prefs = prefs,
                 modifier = Modifier.padding(padding)
             )
         }
