@@ -8,7 +8,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.foundation.layout.*
@@ -39,7 +38,7 @@ fun UniFeedApp(
         )
     }
 
-    // 发现流程状态：加载中 / 结果 / 错误
+    val error = state.discoveryError
     if (state.isDiscovering) {
         FeedDiscoveryLoading()
     } else if (state.discoveredFeeds.isNotEmpty()) {
@@ -52,9 +51,9 @@ fun UniFeedApp(
                 showAddDialog = false
             }
         )
-    } else if (state.discoveryError != null) {
+    } else if (error != null) {
         FeedDiscoveryError(
-            message = state.discoveryError,
+            message = error,
             onDismiss = { viewModel.clearDiscovery() },
             onRetry = { viewModel.discoverFeeds(discoverInput) }
         )
