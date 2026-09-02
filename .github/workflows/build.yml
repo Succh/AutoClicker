@@ -20,8 +20,21 @@ jobs:
           distribution: "temurin"
           java-version: "17"
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Download Gradle 8.11.1
+        run: |
+          curl -fsSL -o /tmp/gradle.zip https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
+          unzip -q /tmp/gradle.zip -d /tmp
+          echo "/tmp/gradle-8.11.1/bin" >> $GITHUB_PATH
 
       - name: Build debug APK
         run: gradle assembleDebug --no-daemon --stacktrace
