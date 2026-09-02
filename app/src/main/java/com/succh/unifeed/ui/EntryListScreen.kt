@@ -1,15 +1,19 @@
 package com.succh.unifeed.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.succh.unifeed.data.db.entity.Entry
@@ -27,7 +31,7 @@ fun EntryListScreen(
     if (entries.isEmpty()) {
         Box(
             modifier = modifier.fillMaxSize(),
-            contentAlignment = androidx.compose.ui.Alignment.Center
+            contentAlignment = Alignment.Center
         ) {
             Text("暂无文章", style = MaterialTheme.typography.bodyLarge)
         }
@@ -67,19 +71,15 @@ private fun EntryItem(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 4.dp),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically
         ) {
             if (!entry.isRead) {
                 Box(
                     modifier = Modifier
                         .size(8.dp)
                         .padding(end = 8.dp)
-                ) {
-                    androidx.compose.foundation.background(
-                        color = colors.primary,
-                        shape = androidx.compose.foundation.shape.CircleShape
-                    )
-                }
+                        .background(color = colors.primary, shape = CircleShape)
+                )
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -87,7 +87,7 @@ private fun EntryItem(
                     style = MaterialTheme.typography.titleMedium,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    fontWeight = if (entry.isRead) null else androidx.compose.ui.text.font.FontWeight.Bold
+                    fontWeight = if (entry.isRead) null else FontWeight.Bold
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
