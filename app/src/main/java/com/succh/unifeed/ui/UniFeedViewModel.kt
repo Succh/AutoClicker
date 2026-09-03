@@ -84,8 +84,10 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
             _uiState.update { it.copy(isLoading = true, error = null) }
             val result = repo.addFeed(url.trim())
             _uiState.update { it.copy(isLoading = false) }
-            if (result.isFailure) {
-                _uiState.update { it.copy(error = result.exceptionOrNull()?.message ?: "添加失败") }
+            result.onSuccess { feed ->
+                _uiState.update { it.copy(selectedFeedId = feed.id) }
+            }.onFailure { e ->
+                _uiState.update { it.copy(error = e.message ?: "添加失败") }
             }
         }
     }
