@@ -56,13 +56,16 @@ class FeedRepository(
                 ).also { feedDao.update(it) }
                 existing
             } else {
-                Feed(
+                val newFeed = Feed(
                     title = parsed.title.ifEmpty { url },
                     url = url,
                     siteUrl = parsed.siteUrl,
                     description = parsed.description,
                     faviconUrl = buildFaviconUrl(parsed.siteUrl ?: url)
-                ).also { feedDao.insert(it) }
+                )
+                // Room 不会回填传入对象的 id，必须用 insert 返回值拿到真实主键
+                val newId = feedDao.insert(newFeed)
+                newFeed.copy(id = newId)
             }
             saveEntries(feed.id, parsed)
             feedDao.updateUnreadCount(feed.id)
