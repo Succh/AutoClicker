@@ -2,6 +2,7 @@ package com.succh.unifeed.ui
 
 import android.annotation.SuppressLint
 import android.view.ViewGroup
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.fillMaxSize
@@ -59,6 +60,8 @@ fun ReaderScreen(
             prefs = prefs
         )
     }
+    // 用文章原链接作 WebView baseURL：即使有漏网的相对路径图片也能正确解析
+    val baseUrl = entry.link?.takeIf { it.startsWith("http") }
 
     Scaffold(
         topBar = {
@@ -112,12 +115,16 @@ fun ReaderScreen(
                     settings.useWideViewPort = true
                     settings.domStorageEnabled = true
                     settings.defaultTextEncodingName = "UTF-8"
+                    // 图片加载相关：确保自动加载网络图片、不拦截任何图片请求
+                    settings.loadsImagesAutomatically = true
+                    settings.blockNetworkImage = false
+                    settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                     webViewClient = WebViewClient()
-                    loadDataWithBaseURL(null, articleHtml, "text/html", "UTF-8", null)
+                    loadDataWithBaseURL(baseUrl, articleHtml, "text/html", "UTF-8", null)
                 }
             },
             update = { webView ->
-                webView.loadDataWithBaseURL(null, articleHtml, "text/html", "UTF-8", null)
+                webView.loadDataWithBaseURL(baseUrl, articleHtml, "text/html", "UTF-8", null)
             }
         )
     }
