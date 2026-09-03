@@ -18,66 +18,39 @@ fun UniFeedApp(
     viewModel: UniFeedViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
-    var showAddDialog by remember { mutableStateOf(false) }
+    var showDiscover by remember { mutableStateOf(false) }
     var selectedEntry by remember { mutableStateOf<Entry?>(null) }
-    var discoverInput by remember { mutableStateOf("") }
-    var showRsshub by remember { mutableStateOf(false) }
     var tab by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
     val prefs = remember { ReaderPrefs(context) }
 
-    // 选中订阅源时自动切到文章 Tab
+    // 订阅成功自动切到文章 Tab 并退出发现页
     LaunchedEffect(state.selectedFeedId) {
-        if (state.selectedFeedId != null) tab = 1
+        if (state.selectedFeedId != null) {
+            tab = 1
+            showDiscover = false
+        }
     }
 
-    if (showAddDialog) {
-        AddFeedDialog(
-            onDismiss = { showAddDialog = false; viewModel.clearDiscovery() },
-            onConfirm = {
-                viewModel.addFeed(it)
-                showAddDialog = false
-                viewModel.clearDiscovery()
-            },
-            onDiscover = {
-                discoverInput = it
-                viewModel.discoverFeeds(it)
-            },
-            onRsshubBrowse = { showRsshub = true }
-        )
-    }
-
-    if (showRsshub) {
-        RsshubBrowserDialog(
-            onDismiss = { showRsshub = false },
-            onSubscribe = { url ->
-                viewModel.addFeed(url)
-                showRsshub = false
-                showAddDialog = false
-                viewModel.clearDiscovery()
-            }
-        )
-    }
-
-    val error = state.discoveryError
-    if (state.isDiscovering) {
-        FeedDiscoveryLoading()
-    } else if (state.discoveredFeeds.isNotEmpty()) {
-        FeedDiscoveryDialog(
+    // 独立发现页：URL 输入 / 自动发现 / RSSHub 分类浏览 / 订阅反馈
+    if (showDiscover) {
+        DiscoverScreen(
+            isDiscovering = state.isDiscovering,
             discoveredFeeds = state.discoveredFeeds,
-            onDismiss = { viewModel.clearDiscovery() },
-            onConfirm = { feed ->
-                viewModel.addFeed(feed.feedUrl)
+            discoveryError = state.discoveryError,
+            isSubscribing = state.isLoading,
+            subscribeError = state.error,
+            onBack = {
+                showDiscover = false
                 viewModel.clearDiscovery()
-                showAddDialog = false
-            }
+                viewModel.clearError()
+            },
+            onDiscover = { viewModel.discoverFeeds(it) },
+            onAddDirect = { viewModel.addFeed(it) },
+            onSubscribe = { viewModel.addFeed(it) },
+            onClearError = { viewModel.clearError() }
         )
-    } else if (error != null) {
-        FeedDiscoveryError(
-            message = error,
-            onDismiss = { viewModel.clearDiscovery() },
-            onRetry = { viewModel.discoverFeeds(discoverInput) }
-        )
+        return
     }
 
     val entry = selectedEntry
@@ -110,7 +83,7 @@ fun UniFeedApp(
                 viewModel.selectFeed(feedId)
                 if (feedId != null) tab = 1
             },
-            onAddFeed = { showAddDialog = true },
+            onAddFeed = { showDiscover = true },
             onDeleteFeed = viewModel::deleteFeed,
             onEntryClick = { entry ->
                 selectedEntry = entry
