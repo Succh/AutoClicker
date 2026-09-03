@@ -43,11 +43,12 @@ class FeedRepository(
 
     /**
      * 添加订阅源：抓取并解析，存入数据库
+     * 若为 RSSHub 官方实例链接且官方不可达，自动切换公共镜像重试。
      */
     suspend fun addFeed(url: String): Result<Feed> {
         return try {
-            val parsed: ParsedFeed = parser.fetch(url)
-            val existing = feedDao.getByUrl(url)
+            val (parsed, actualUrl) = fetchWithRsshubFallback(url)
+            val existing = feedDao.getByUrl(url) ?: feedDao.getByUrl(actualUrl)
             val feed = if (existing != null) {
                 existing.copy(
                     title = parsed.title,
@@ -57,11 +58,11 @@ class FeedRepository(
                 existing
             } else {
                 val newFeed = Feed(
-                    title = parsed.title.ifEmpty { url },
-                    url = url,
+                    title = parsed.title.ifEmpty { actualUrl },
+                    url = actualUrl,
                     siteUrl = parsed.siteUrl,
                     description = parsed.description,
-                    faviconUrl = buildFaviconUrl(parsed.siteUrl ?: url)
+                    faviconUrl = buildFaviconUrl(parsed.siteUrl ?: actualUrl)
                 )
                 // Room 不会回填传入对象的 id，必须用 insert 返回值拿到真实主键
                 val newId = feedDao.insert(newFeed)
@@ -76,12 +77,32 @@ class FeedRepository(
     }
 
     /**
+     * RSSHub 官方实例不可达时，自动遍历公共镜像重试。
+     * 返回 (解析结果, 实际成功抓取的 URL)。
+     */
+    private suspend fun fetchWithRsshubFallback(url: String): Pair<ParsedFeed, String> {
+        if (!url.contains("rsshub.app")) {
+            return parser.fetch(url) to url
+        }
+        var lastError: Exception? = null
+        for (mirror in RSSHUB_MIRRORS) {
+            val candidate = if (mirror == RSSHUB_OFFICIAL) url else url.replace(RSSHUB_OFFICIAL, mirror)
+            try {
+                return parser.fetch(candidate) to candidate
+            } catch (e: Exception) {
+                lastError = e
+            }
+        }
+        throw lastError ?: Exception("RSSHub 实例均不可用")
+    }
+
+    /**
      * 刷新指定订阅源
      */
     suspend fun refreshFeed(feedId: Long) {
         val feed = feedDao.getById(feedId) ?: return
         try {
-            val parsed = parser.fetch(feed.url)
+            val (parsed, _) = fetchWithRsshubFallback(feed.url)
             saveEntries(feed.id, parsed)
             feedDao.update(feed.copy(lastUpdated = System.currentTimeMillis()))
             feedDao.updateUnreadCount(feed.id)
@@ -170,5 +191,17 @@ class FeedRepository(
         } catch (_: Exception) {
             ""
         }
+    }
+
+    private companion object {
+        const val RSSHUB_OFFICIAL = "https://rsshub.app"
+        // RSSHub 公共实例（官方优先，失败自动切换；可自行增删）
+        val RSSHUB_MIRRORS = listOf(
+            RSSHUB_OFFICIAL,
+            "https://rsshub.rssforever.com",
+            "https://rsshub.pseudoyu.com",
+            "https://rsshub.ktachibana.party",
+            "https://rsshub.moeyy.xyz"
+        )
     }
 }
