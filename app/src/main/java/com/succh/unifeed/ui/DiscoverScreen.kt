@@ -32,17 +32,15 @@ fun DiscoverScreen(
     onBack: () -> Unit,
     onDiscover: (String) -> Unit,
     onAddDirect: (String) -> Unit,
-    onSubscribe: (String) -> Unit,
+    onSubscribe: (String, String?) -> Unit,
     onClearError: () -> Unit
 ) {
-    // Tab 0 = 精选目录（RSSHub），Tab 1 = 网址发现
     var activeTab by remember { mutableIntStateOf(0) }
     var cat by remember { mutableStateOf<RsshubCategory?>(null) }
     var pending by remember { mutableStateOf<RsshubRoute?>(null) }
     var param by remember { mutableStateOf("") }
     var query by remember { mutableStateOf("") }
 
-    // 系统返回键：分类内→返回分类列表，否则→退出发现页
     BackHandler {
         if (cat != null) {
             cat = null
@@ -51,7 +49,6 @@ fun DiscoverScreen(
         }
     }
 
-    // 需要补参数的路由确认对话框
     pending?.let { r ->
         AlertDialog(
             onDismissRequest = { pending = null },
@@ -87,8 +84,9 @@ fun DiscoverScreen(
                         val finalUrl = if (r.description.isNotBlank()) {
                             r.url.trimEnd('/') + "/" + param.trim().trimStart('/')
                         } else r.url
+                        val finalTitle = r.title + (if (r.description.isNotBlank() && param.isNotBlank()) ": ${param.trim()}" else "")
                         pending = null
-                        onSubscribe(finalUrl)
+                        onSubscribe(finalUrl, finalTitle)
                     },
                     enabled = r.description.isBlank() || param.isNotBlank()
                 ) { Text("订阅") }
@@ -121,7 +119,6 @@ fun DiscoverScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // 搜索框（仅目录 Tab 显示，分类内也保留搜索）
             if (cat == null) {
                 OutlinedTextField(
                     value = query,
@@ -135,7 +132,6 @@ fun DiscoverScreen(
                 )
             }
 
-            // Tab 切换（未进入分类时显示）
             if (cat == null && query.isBlank()) {
                 TabRow(selectedTabIndex = activeTab) {
                     Tab(
@@ -149,7 +145,6 @@ fun DiscoverScreen(
                 }
             }
 
-            // 订阅中 loading
             if (isSubscribing) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -161,7 +156,6 @@ fun DiscoverScreen(
                 }
             }
 
-            // 订阅错误提示
             subscribeError?.let { err ->
                 Surface(
                     color = MaterialTheme.colorScheme.errorContainer,
@@ -185,9 +179,7 @@ fun DiscoverScreen(
                 }
             }
 
-            // 主体内容
             when {
-                // 目录 Tab 内：搜索模式 → 全库搜索结果
                 cat == null && activeTab == 0 && query.isNotBlank() -> {
                     val results = RsshubPresets.allRoutes.filter { (catName, route) ->
                         val q = query.trim()
@@ -215,7 +207,7 @@ fun DiscoverScreen(
                                         param = ""
                                         pending = route
                                     } else {
-                                        onSubscribe(route.url)
+                                        onSubscribe(route.url, route.title)
                                     }
                                 }
                             )
@@ -223,7 +215,6 @@ fun DiscoverScreen(
                     }
                 }
 
-                // 目录 Tab：分类浏览（未进分类）
                 cat == null && activeTab == 0 -> {
                     LazyColumn(
                         Modifier.fillMaxSize(),
@@ -270,7 +261,6 @@ fun DiscoverScreen(
                     }
                 }
 
-                // 分类内路由列表
                 cat != null -> {
                     LazyColumn(
                         Modifier.fillMaxSize(),
@@ -285,7 +275,7 @@ fun DiscoverScreen(
                                         param = ""
                                         pending = r
                                     } else {
-                                        onSubscribe(r.url)
+                                        onSubscribe(r.url, r.title)
                                     }
                                 }
                             )
@@ -293,7 +283,6 @@ fun DiscoverScreen(
                     }
                 }
 
-                // 网址发现 Tab
                 else -> {
                     Column(Modifier.padding(16.dp)) {
                         OutlinedTextField(
@@ -343,7 +332,7 @@ fun DiscoverScreen(
                                         Card(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .clickable { onSubscribe(feed.feedUrl) },
+                                                .clickable { onSubscribe(feed.feedUrl, feed.title) },
                                             colors = CardDefaults.cardColors(
                                                 containerColor = MaterialTheme.colorScheme.surfaceVariant
                                             )
