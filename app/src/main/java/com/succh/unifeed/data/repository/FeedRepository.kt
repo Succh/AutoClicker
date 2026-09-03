@@ -9,7 +9,6 @@ import com.succh.unifeed.data.rss.DiscoveredFeed
 import com.succh.unifeed.data.rss.FeedDiscovery
 import com.succh.unifeed.data.rss.RssParser
 import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -17,7 +16,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.selects.select
 
 /**
  * 订阅源仓库：统一管理订阅 CRUD 与抓取
@@ -145,6 +143,7 @@ class FeedRepository(
 
         // 并发试前3个镜像
         val topMirrors = RSSHUB_MIRRORS.take(3)
+        var successResult: Pair<ParsedFeed, String>? = null
         coroutineScope {
             val deferreds = topMirrors.map { mirror ->
                 async {
@@ -156,12 +155,15 @@ class FeedRepository(
                     }
                 }
             }
-            // 取最先成功的结果
             for (deferred in deferreds) {
                 val result = deferred.await()
-                if (result != null) return@coroutineScope result
+                if (result != null) {
+                    successResult = result
+                    break
+                }
             }
-        }?.let { return it }
+        }
+        if (successResult != null) return successResult!!
 
         // 前3个全失败，串行试剩余镜像
         var lastError: Exception? = null
