@@ -1,8 +1,6 @@
 package com.succh.unifeed.ui
 
 import android.annotation.SuppressLint
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.view.ViewGroup
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -38,6 +36,7 @@ import com.succh.unifeed.data.db.entity.Entry
 import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import javax.net.ssl.HttpsURLConnection
 
 @OptIn(ExperimentalMaterial3Api::class)
 @SuppressLint("SetJavaScriptEnabled")
@@ -124,35 +123,52 @@ fun ReaderScreen(
                     settings.loadsImagesAutomatically = true
                     settings.blockNetworkImage = false
                     settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                    // 核心：拦截所有图片请求，手动去掉 Referer 头绕过防盗链
+                    // 拦截图片请求：去掉 Referer 绕防盗链，用 OkHttp 级别的请求头处理
                     webViewClient = object : WebViewClient() {
                         override fun shouldInterceptRequest(
                             view: WebView?,
                             request: WebResourceRequest?
                         ): WebResourceResponse? {
                             val url = request?.url?.toString() ?: return null
-                            // 只拦截图片资源
-                            if (url.matches(Regex(".*\\.(png|jpg|jpeg|gif|webp|svg|bmp|ico).*", RegexOption.IGNORE_CASE))
-                                || url.contains("/img/") || url.contains("/image/") || url.contains("pic")
-                            ) {
-                                return try {
-                                    val conn = URL(url).openConnection() as HttpURLConnection
-                                    conn.setRequestProperty("User-Agent", "Mozilla/5.0")
-                                    conn.setRequestProperty("Referer", "")
-                                    conn.setRequestProperty("Accept", "image/*")
-                                    conn.connectTimeout = 10000
-                                    conn.readTimeout = 10000
-                                    conn.instanceFollowRedirects = true
-                                    conn.connect()
-                                    val contentType = conn.contentType ?: "image/jpeg"
-                                    val encoding = conn.contentEncoding ?: "UTF-8"
-                                    val inputStream: InputStream = conn.inputStream
-                                    WebResourceResponse(contentType, encoding, inputStream)
-                                } catch (_: Exception) {
-                                    null // 失败时让 WebView 默认处理
+                            // 判断是否图片：扩展名匹配 OR Content-Type 常见图床路径
+                            val isImage = url.matches(Regex(".*\\.(png|jpg|jpeg|gif|webp|svg|bmp|ico|avif)(\\?.*)?$", RegexOption.IGNORE_CASE))
+                                || url.contains("/img/") || url.contains("/image/")
+                                || url.contains("/images/") || url.contains("/pics/")
+                                || url.contains("pic1.") || url.contains("pic2.") || url.contains("pic3.")
+                                || url.contains("mmbiz.") || url.contains("wximg.")
+                                || url.contains("sinaimg.") || url.contains("hdslb.")
+                                || url.contains("/wp-content/uploads/")
+                                || url.contains("/static/") && url.contains("image")
+                            if (!isImage) return null
+                            return try {
+                                val conn = URL(url).openConnection() as HttpURLConnection
+                                // HTTPS 设置：信任所有证书，避免自签名证书导致图片加载失败
+                                if (conn is HttpsURLConnection) {
+                                    conn.sslSocketFactory = javax.net.ssl.TrustManagerFactory.getInstance(
+                                        javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm()
+                                    ).let { tmf ->
+                                        tmf.init(null)
+                                        javax.net.ssl.SSLContext.getInstance("TLS").apply {
+                                            init(null, tmf.trustManagers, java.security.SecureRandom())
+                                        }.socketFactory
+                                    }
+                                    conn.hostnameVerifier = javax.net.ssl.HostnameVerifier { _, _ -> true }
                                 }
+                                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
+                                conn.setRequestProperty("Referer", "")
+                                conn.setRequestProperty("Accept", "image/avif,image/webp,image/png,image/*,*/*;q=0.8")
+                                conn.setRequestProperty("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
+                                conn.connectTimeout = 15000
+                                conn.readTimeout = 15000
+                                conn.instanceFollowRedirects = true
+                                conn.connect()
+                                val contentType = conn.contentType ?: "image/jpeg"
+                                val encoding = conn.contentEncoding ?: "UTF-8"
+                                val inputStream: InputStream = conn.inputStream
+                                WebResourceResponse(contentType, encoding, inputStream)
+                            } catch (_: Exception) {
+                                null
                             }
-                            return null
                         }
                     }
                     loadDataWithBaseURL(baseUrl, articleHtml, "text/html", "UTF-8", null)
