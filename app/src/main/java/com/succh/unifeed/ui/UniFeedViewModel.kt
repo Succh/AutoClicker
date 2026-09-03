@@ -18,10 +18,11 @@ data class UniFeedUiState(
     val error: String? = null,
     val selectedFeedId: Long? = null,
     val filterMode: FilterMode = FilterMode.ALL,
-    // 发现状态
     val isDiscovering: Boolean = false,
     val discoveredFeeds: List<DiscoveredFeed> = emptyList(),
-    val discoveryError: String? = null
+    val discoveryError: String? = null,
+    val isSubscribing: Boolean = false,
+    val subscribeError: String? = null
 )
 
 enum class FilterMode { ALL, UNREAD, STARRED }
@@ -61,7 +62,6 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    /** 发现订阅源：输入任意 URL，自动探测 RSS/Atom */
     fun discoverFeeds(input: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(isDiscovering = true, discoveryError = null, discoveredFeeds = emptyList()) }
@@ -74,36 +74,46 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    /** 清除发现结果 */
     fun clearDiscovery() {
         _uiState.update { it.copy(isDiscovering = false, discoveredFeeds = emptyList(), discoveryError = null) }
     }
 
-    /** 添加订阅：先尝试自动发现，发现不到再直接当 RSS 链接解析 */
+    /**
+     * 添加订阅：RSSHub 源走即时订阅（先存后取），普通源走原有抓取流程
+     */
     fun addFeed(url: String) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = null) }
+            _uiState.update { it.copy(isSubscribing = true, subscribeError = null) }
             val trimmed = url.trim()
-            // 明显是 RSS 链接时跳过发现，直接解析
+            // RSSHub 源：即时订阅，不等待网络
+            if (trimmed.contains("rsshub.app")) {
+                val result = repo.addFeedInstant(trimmed)
+                result.onSuccess { feed ->
+                    _uiState.update { it.copy(isSubscribing = false, selectedFeedId = feed.id) }
+                }.onFailure { e ->
+                    _uiState.update { it.copy(isSubscribing = false, subscribeError = e.message ?: "订阅失败") }
+                }
+                return@launch
+            }
+            // 普通源：先探测再抓取
             val looksLikeFeed = trimmed.endsWith(".xml") || trimmed.endsWith(".rss") ||
-                trimmed.endsWith(".atom") || trimmed.contains("/feed") || trimmed.contains("rsshub")
+                trimmed.endsWith(".atom") || trimmed.contains("/feed")
             val feedUrl = if (looksLikeFeed) {
                 trimmed
             } else {
-                // 先尝试自动发现（输入普通网页时可自动探测 RSS）
                 val discoveryResult = repo.discoverFeeds(trimmed)
                 if (discoveryResult.isSuccess && discoveryResult.getOrThrow().isNotEmpty()) {
                     discoveryResult.getOrThrow().first().feedUrl
                 } else {
-                    trimmed // 直接当 RSS 链接处理
+                    trimmed
                 }
             }
             val result = repo.addFeed(feedUrl)
-            _uiState.update { it.copy(isLoading = false) }
+            _uiState.update { it.copy(isSubscribing = false) }
             result.onSuccess { feed ->
                 _uiState.update { it.copy(selectedFeedId = feed.id) }
             }.onFailure { e ->
-                _uiState.update { it.copy(error = e.message ?: "添加失败：无法识别该链接中的订阅源") }
+                _uiState.update { it.copy(subscribeError = e.message ?: "添加失败：无法识别该链接中的订阅源") }
             }
         }
     }
@@ -143,6 +153,6 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun clearError() {
-        _uiState.update { it.copy(error = null) }
+        _uiState.update { it.copy(error = null, subscribeError = null) }
     }
 }
