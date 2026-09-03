@@ -14,8 +14,8 @@ import java.util.concurrent.TimeUnit
  * 基于 XmlPullParser，无需额外依赖
  */
 class RssParser(private val client: OkHttpClient = OkHttpClient.Builder()
-    .connectTimeout(15, TimeUnit.SECONDS)
-    .readTimeout(15, TimeUnit.SECONDS)
+    .connectTimeout(5, TimeUnit.SECONDS)
+    .readTimeout(5, TimeUnit.SECONDS)
     .followRedirects(true)
     .build()) {
 
