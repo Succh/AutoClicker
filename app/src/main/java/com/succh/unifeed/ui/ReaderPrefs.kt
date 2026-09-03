@@ -2,66 +2,78 @@ package com.succh.unifeed.ui
 
 import android.content.Context
 import android.content.SharedPreferences
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 
 enum class ReaderTheme { LIGHT, SEPIA, DARK }
 
-/**
- * 阅读设置：底层存 SharedPreferences，但暴露 Compose 可观察状态，
- * 修改后立即触发重组，实现设置面板实时预览效果。
- */
 class ReaderPrefs(context: Context) {
     private val sp: SharedPreferences =
         context.applicationContext.getSharedPreferences("unifeed_prefs", Context.MODE_PRIVATE)
 
-    var fontSize: Float by mutableFloatStateOf(sp.getFloat(KEY_SIZE, 17f))
+    private val _fontSize = mutableFloatStateOf(sp.getFloat(KEY_SIZE, 17f))
+    var fontSize: Float
+        get() = _fontSize.floatValue
         set(value) {
-            field = value.coerceIn(13f, 24f)
-            sp.edit().putFloat(KEY_SIZE, field).apply()
+            val v = value.coerceIn(13f, 24f)
+            _fontSize.floatValue = v
+            sp.edit().putFloat(KEY_SIZE, v).apply()
         }
 
-    var lineHeight: Float by mutableFloatStateOf(sp.getFloat(KEY_LH, 1.7f))
+    private val _lineHeight = mutableFloatStateOf(sp.getFloat(KEY_LH, 1.7f))
+    var lineHeight: Float
+        get() = _lineHeight.floatValue
         set(value) {
-            field = value.coerceIn(1.2f, 2.2f)
-            sp.edit().putFloat(KEY_LH, field).apply()
+            val v = value.coerceIn(1.2f, 2.2f)
+            _lineHeight.floatValue = v
+            sp.edit().putFloat(KEY_LH, v).apply()
         }
 
-    var theme: ReaderTheme by mutableStateOf(loadTheme())
+    private val _theme = mutableStateOf(loadTheme())
+    var theme: ReaderTheme
+        get() = _theme.value
         set(value) {
-            field = value
+            _theme.value = value
             sp.edit().putString(KEY_THEME, value.name).apply()
         }
 
-    var showImages: Boolean by mutableStateOf(sp.getBoolean(KEY_IMAGES, true))
+    private val _showImages = mutableStateOf(sp.getBoolean(KEY_IMAGES, true))
+    var showImages: Boolean
+        get() = _showImages.value
         set(value) {
-            field = value
+            _showImages.value = value
             sp.edit().putBoolean(KEY_IMAGES, value).apply()
         }
 
-    var serifFont: Boolean by mutableStateOf(sp.getBoolean(KEY_SERIF, false))
+    private val _serifFont = mutableStateOf(sp.getBoolean(KEY_SERIF, false))
+    var serifFont: Boolean
+        get() = _serifFont.value
         set(value) {
-            field = value
+            _serifFont.value = value
             sp.edit().putBoolean(KEY_SERIF, value).apply()
         }
 
-    var justifyText: Boolean by mutableStateOf(sp.getBoolean(KEY_JUSTIFY, false))
+    private val _justifyText = mutableStateOf(sp.getBoolean(KEY_JUSTIFY, false))
+    var justifyText: Boolean
+        get() = _justifyText.value
         set(value) {
-            field = value
+            _justifyText.value = value
             sp.edit().putBoolean(KEY_JUSTIFY, value).apply()
         }
 
-    var listShowSummary: Boolean by mutableStateOf(sp.getBoolean(KEY_LIST_SUMMARY, false))
+    private val _listShowSummary = mutableStateOf(sp.getBoolean(KEY_LIST_SUMMARY, false))
+    var listShowSummary: Boolean
+        get() = _listShowSummary.value
         set(value) {
-            field = value
+            _listShowSummary.value = value
             sp.edit().putBoolean(KEY_LIST_SUMMARY, value).apply()
         }
 
-    var autoMarkRead: Boolean by mutableStateOf(sp.getBoolean(KEY_AUTO_READ, true))
+    private val _autoMarkRead = mutableStateOf(sp.getBoolean(KEY_AUTO_READ, true))
+    var autoMarkRead: Boolean
+        get() = _autoMarkRead.value
         set(value) {
-            field = value
+            _autoMarkRead.value = value
             sp.edit().putBoolean(KEY_AUTO_READ, value).apply()
         }
 
