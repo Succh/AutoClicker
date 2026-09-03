@@ -1,7 +1,11 @@
 package com.succh.unifeed.ui
 
 import android.annotation.SuppressLint
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.view.ViewGroup
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -31,6 +35,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.viewinterop.AndroidView
 import com.succh.unifeed.data.db.entity.Entry
+import java.io.InputStream
+import java.net.HttpURLConnection
+import java.net.URL
 
 @OptIn(ExperimentalMaterial3Api::class)
 @SuppressLint("SetJavaScriptEnabled")
@@ -60,7 +67,6 @@ fun ReaderScreen(
             prefs = prefs
         )
     }
-    // 用文章原链接作 WebView baseURL：即使有漏网的相对路径图片也能正确解析
     val baseUrl = entry.link?.takeIf { it.startsWith("http") }
 
     Scaffold(
@@ -115,11 +121,40 @@ fun ReaderScreen(
                     settings.useWideViewPort = true
                     settings.domStorageEnabled = true
                     settings.defaultTextEncodingName = "UTF-8"
-                    // 图片加载相关：确保自动加载网络图片、不拦截任何图片请求
                     settings.loadsImagesAutomatically = true
                     settings.blockNetworkImage = false
                     settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                    webViewClient = WebViewClient()
+                    // 核心：拦截所有图片请求，手动去掉 Referer 头绕过防盗链
+                    webViewClient = object : WebViewClient() {
+                        override fun shouldInterceptRequest(
+                            view: WebView?,
+                            request: WebResourceRequest?
+                        ): WebResourceResponse? {
+                            val url = request?.url?.toString() ?: return null
+                            // 只拦截图片资源
+                            if (url.matches(Regex(".*\\.(png|jpg|jpeg|gif|webp|svg|bmp|ico).*", RegexOption.IGNORE_CASE))
+                                || url.contains("/img/") || url.contains("/image/") || url.contains("pic")
+                            ) {
+                                return try {
+                                    val conn = URL(url).openConnection() as HttpURLConnection
+                                    conn.setRequestProperty("User-Agent", "Mozilla/5.0")
+                                    conn.setRequestProperty("Referer", "")
+                                    conn.setRequestProperty("Accept", "image/*")
+                                    conn.connectTimeout = 10000
+                                    conn.readTimeout = 10000
+                                    conn.instanceFollowRedirects = true
+                                    conn.connect()
+                                    val contentType = conn.contentType ?: "image/jpeg"
+                                    val encoding = conn.contentEncoding ?: "UTF-8"
+                                    val inputStream: InputStream = conn.inputStream
+                                    WebResourceResponse(contentType, encoding, inputStream)
+                                } catch (_: Exception) {
+                                    null // 失败时让 WebView 默认处理
+                                }
+                            }
+                            return null
+                        }
+                    }
                     loadDataWithBaseURL(baseUrl, articleHtml, "text/html", "UTF-8", null)
                 }
             },
