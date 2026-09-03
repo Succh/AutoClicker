@@ -1,8 +1,8 @@
 package com.succh.unifeed.ui
 
 /*
- * RSSHub 精选賨捡度巴，按分并分组。
- * 每毑返回对帐一个不时，竹僻可一键订阅。
+ * RSSHub 精选订阅源，按分类分组。
+ * 每个分类对应一个类别，点击可一键订阅。
  * 路由地址格式：https://rsshub.app/xxx/yyy
  */
 data class RsshubRoute(
@@ -20,7 +20,7 @@ data class RsshubCategory(
 object RsshubPresets {
 
     val categories: List<RsshubCategory> = listOf(
-        RsshubCategory("社交子伓", "social", listOf(
+        RsshubCategory("社交子版", "social", listOf(
             RsshubRoute("微博热搜", "https://rsshub.app/weibo/search/hot"),
             RsshubRoute("微博用户", "https://rsshub.app/weibo/user/", "填入用户UID"),
             RsshubRoute("知乎热榜", "https://rsshub.app/zhihu/hotlist"),
@@ -75,6 +75,25 @@ object RsshubPresets {
             RsshubRoute("爱范儿", "https://rsshub.app/ifanr"),
             RsshubRoute("AppSo", "https://rsshub.app/appso"),
             RsshubRoute("Medium", "https://rsshub.app/medium/", "填入用户/标签"),
+        )),
+        RsshubCategory("游戏", "game", listOf(
+            RsshubRoute("Steam 新闻", "https://rsshub.app/steam/news/", "填入AppID"),
+            RsshubRoute("NGA 热帖", "https://rsshub.app/nga/forum/", "填入版块ID"),
+            RsshubRoute("游研社", "https://rsshub.app/yystv/"),
+            RsshubRoute("机核网", "https://rsshub.app/gcores/"),
+        )),
+        RsshubCategory("财经商业", "finance", listOf(
+            RsshubRoute("财新网", "https://rsshub.app/caixin/latest"),
+            RsshubRoute("雪球热帖", "https://rsshub.app/xueqiu/hots"),
+            RsshubRoute("财联社电报", "https://rsshub.app/cls/telegraph"),
+            RsshubRoute("第一财经", "https://rsshub.app/yicai/"),
+            RsshubRoute("金十数据", "https://rsshub.app/jin10/"),
+        )),
+        RsshubCategory("知识教育", "edu", listOf(
+            RsshubRoute("TED 演讲", "https://rsshub.app/ted/talks"),
+            RsshubRoute("果壳网", "https://rsshub.app/guokr/"),
+            RsshubRoute("维基百科", "https://rsshub.app/wikipedia/", "填入语言/词条"),
+            RsshubRoute("每日一文", "https://rsshub.app/daily/"),
         )),
     )
 }
