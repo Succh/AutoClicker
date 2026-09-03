@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.RssFeed
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -65,19 +66,61 @@ fun FeedListScreen(
                 }
             }
         } else {
+            // 按 folderId 分组
+            val grouped = feeds.groupBy { it.folderId }
+            val sortedKeys = grouped.keys.sortedBy { it ?: Long.MAX_VALUE }
+
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding),
                 contentPadding = PaddingValues(vertical = 8.dp)
             ) {
-                items(feeds, key = { it.id }) { feed ->
-                    FeedItem(
-                        feed = feed,
-                        selected = feed.id == selectedFeedId,
-                        onClick = { onSelectFeed(if (feed.id == selectedFeedId) null else feed.id) },
-                        onDelete = { onDeleteFeed(feed) }
-                    )
+                sortedKeys.forEach { folderId ->
+                    val groupFeeds = grouped[folderId]!!
+                    // 分组标题
+                    item(key = "header_${folderId}") {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 4.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            shape = MaterialTheme.shapes.small
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.Folder,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = if (folderId == null) "未分类" else "分类",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(Modifier.weight(1f))
+                                Text(
+                                    text = "${groupFeeds.size} 个订阅",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                )
+                            }
+                        }
+                    }
+
+                    items(groupFeeds, key = { it.id }) { feed ->
+                        FeedItem(
+                            feed = feed,
+                            selected = feed.id == selectedFeedId,
+                            onClick = { onSelectFeed(if (feed.id == selectedFeedId) null else feed.id) },
+                            onDelete = { onDeleteFeed(feed) }
+                        )
+                    }
                 }
             }
         }
