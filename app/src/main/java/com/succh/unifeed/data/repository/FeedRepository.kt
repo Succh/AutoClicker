@@ -4,6 +4,7 @@ import com.succh.unifeed.data.db.AppDatabase
 import com.succh.unifeed.data.db.entity.Entry
 import com.succh.unifeed.data.db.entity.Feed
 import com.succh.unifeed.data.model.ParsedFeed
+import com.succh.unifeed.data.rss.ContentExtractor
 import com.succh.unifeed.data.rss.DiscoveredFeed
 import com.succh.unifeed.data.rss.FeedDiscovery
 import com.succh.unifeed.data.rss.RssParser
@@ -130,14 +131,27 @@ class FeedRepository(
         parsed.entries.forEach { pe ->
             val existing = entryDao.getByGuid(feedId, pe.guid)
             if (existing == null) {
+                var content = pe.content
+                // 正文太短或为空时尝试从原文链接提取全文
+                if ((content.isNullOrBlank() || content.length < 200) && !pe.link.isNullOrBlank()) {
+                    try {
+                        val html = parser.fetchHtml(pe.link)
+                        val extracted = ContentExtractor.extract(html)
+                        if (extracted.length > (content?.length ?: 0)) {
+                            content = extracted
+                        }
+                    } catch (_: Exception) {
+                        // 全文提取失败不影响正常入库
+                    }
+                }
                 entryDao.insert(
                     Entry(
                         feedId = feedId,
                         guid = pe.guid,
                         title = pe.title,
                         link = pe.link,
-                        content = pe.content,
-                        summary = pe.summary ?: pe.content?.take(200),
+                        content = content,
+                        summary = pe.summary ?: content?.take(200),
                         author = pe.author,
                         publishedAt = pe.publishedAt
                     )
