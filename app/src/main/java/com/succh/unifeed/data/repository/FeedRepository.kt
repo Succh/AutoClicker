@@ -10,6 +10,10 @@ import com.succh.unifeed.data.rss.FeedDiscovery
 import com.succh.unifeed.data.rss.RssParser
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /**
  * 订阅源仓库：统一管理订阅 CRUD 与抓取
@@ -22,6 +26,7 @@ class FeedRepository(
     private val feedDao = db.feedDao()
     private val entryDao = db.entryDao()
     private val folderDao = db.folderDao()
+    private val bgScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     fun observeFeeds(): Flow<List<Feed>> = feedDao.observeAll()
     fun observeEntries(feedId: Long): Flow<List<Entry>> = entryDao.observeByFeed(feedId)
@@ -64,7 +69,6 @@ class FeedRepository(
                     description = parsed.description,
                     faviconUrl = buildFaviconUrl(parsed.siteUrl ?: actualUrl)
                 )
-                // Room 不会回填传入对象的 id，必须用 insert 返回值拿到真实主键
                 val newId = feedDao.insert(newFeed)
                 newFeed.copy(id = newId)
             }
@@ -73,6 +77,75 @@ class FeedRepository(
             Result.success(feed)
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    /**
+     * 即时添加订阅源（Folo 式）：先存 URL 和标题到数据库，立即返回成功；
+     * 后台异步 fetch 文章内容。用户无需等待网络请求。
+     * RSSHub 源用路由路径推断标题，普通 URL 用域名做标题。
+     */
+    suspend fun addFeedInstant(url: String, titleHint: String? = null): Result<Feed> {
+        return try {
+            // 已存在则直接返回
+            val existing = feedDao.getByUrl(url)
+            if (existing != null) {
+                return Result.success(existing)
+            }
+            // 推断标题
+            val inferredTitle = titleHint ?: inferTitleFromUrl(url)
+            val newFeed = Feed(
+                title = inferredTitle,
+                url = url,
+                siteUrl = null,
+                description = "",
+                faviconUrl = ""
+            )
+            val newId = feedDao.insert(newFeed)
+            val savedFeed = newFeed.copy(id = newId)
+            // 后台异步抓取文章
+            bgScope.launch {
+                try {
+                    val (parsed, actualUrl) = fetchWithRsshubFallback(url)
+                    feedDao.update(savedFeed.copy(
+                        title = parsed.title.ifEmpty { inferredTitle },
+                        siteUrl = parsed.siteUrl,
+                        description = parsed.description,
+                        faviconUrl = buildFaviconUrl(parsed.siteUrl ?: actualUrl),
+                        url = actualUrl,
+                        lastUpdated = System.currentTimeMillis()
+                    ))
+                    saveEntries(newId, parsed)
+                    feedDao.updateUnreadCount(newId)
+                } catch (_: Exception) {
+                    // 后台抓取失败不影响订阅成功
+                    // 用户下次手动刷新时会重试
+                }
+            }
+            Result.success(savedFeed)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * 从 URL 推断一个人类可读的标题
+     */
+    private fun inferTitleFromUrl(url: String): String {
+        return try {
+            val uri = android.net.Uri.parse(url)
+            val path = uri.path?.trim('/') ?: ""
+            // rsshub.app/weibo/search/hot → 微博热搜
+            if (url.contains("rsshub.app") && path.isNotEmpty()) {
+                val parts = path.split("/")
+                // 取最后 1-2 段拼成简短标题
+                val tail = parts.takeLast(2).joinToString("/")
+                tail
+            } else {
+                uri.host ?: url
+            }
+        } catch (_: Exception) {
+            url
         }
     }
 
@@ -123,7 +196,7 @@ class FeedRepository(
      */
     suspend fun deleteFeed(feed: Feed) {
         entryDao.deleteByFeed(feed.id)
-        feedDao.delete(feed)
+               feedDao.delete(feed)
     }
 
     /**
@@ -195,7 +268,6 @@ class FeedRepository(
 
     private companion object {
         const val RSSHUB_OFFICIAL = "https://rsshub.app"
-        // RSSHub 公共实例（官方优先，失败自动切换；可自行增删）
         val RSSHUB_MIRRORS = listOf(
             RSSHUB_OFFICIAL,
             "https://rsshub.rssforever.com",
