@@ -28,7 +28,7 @@ object RsshubPresets {
             RsshubRoute("微博热搜", "https://rsshub.app/weibo/search/hot"),
             RsshubRoute("微博热搜榜", "https://rsshub.app/weibo/search/hot/1"),
             RsshubRoute("微博用户", "https://rsshub.app/weibo/user/", "填入用户UID"),
-            RsshubRoute("微博图片", "https://rsshub.app/weibo/user/", "填入用户UID（图片模式）"),
+            RsshubRoute("微博关键词", "https://rsshub.app/weibo/keyword/", "填入关键词"),
             RsshubRoute("知乎热榜", "https://rsshub.app/zhihu/hotlist"),
             RsshubRoute("知乎日报", "https://rsshub.app/zhihu/daily"),
             RsshubRoute("知乎专栏", "https://rsshub.app/zhihu/zhuanlan/", "填入专栏ID"),
