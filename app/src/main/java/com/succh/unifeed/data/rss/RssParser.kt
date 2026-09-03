@@ -14,8 +14,8 @@ import java.util.concurrent.TimeUnit
  * 基于 XmlPullParser，无需额外依赖
  */
 class RssParser(private val client: OkHttpClient = OkHttpClient.Builder()
-    .connectTimeout(5, TimeUnit.SECONDS)
-    .readTimeout(5, TimeUnit.SECONDS)
+    .connectTimeout(15, TimeUnit.SECONDS)
+    .readTimeout(15, TimeUnit.SECONDS)
     .followRedirects(true)
     .build()) {
 
@@ -30,7 +30,9 @@ class RssParser(private val client: OkHttpClient = OkHttpClient.Builder()
         return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             val request = Request.Builder()
                 .url(url)
-                .header("User-Agent", "UniFeed/1.0 (RSS Reader; +https://github.com/Succh/AutoClicker)")
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
+                .header("Accept", "application/rss+xml, application/atom+xml, application/xml, text/xml, */*")
+                .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
                 .build()
 
             client.newCall(request).execute().use { response ->
@@ -50,7 +52,8 @@ class RssParser(private val client: OkHttpClient = OkHttpClient.Builder()
         return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             val request = Request.Builder()
                 .url(url)
-                .header("User-Agent", "UniFeed/1.0 (RSS Reader; +https://github.com/Succh/AutoClicker)")
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
+                .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
                 .build()
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
@@ -86,7 +89,6 @@ class RssParser(private val client: OkHttpClient = OkHttpClient.Builder()
         while (eventType != XmlPullParser.END_DOCUMENT) {
             when (eventType) {
                 XmlPullParser.START_DOCUMENT -> {
-                    // 尝试嗅探 feed 类型
                 }
 
                 XmlPullParser.START_TAG -> {
@@ -146,8 +148,6 @@ class RssParser(private val client: OkHttpClient = OkHttpClient.Builder()
         }
 
         if (channelTitle.isEmpty()) {
-            // 可能是 Atom feed 的 <title> 在 <feed> 下，此时 inChannel 为 false
-            // 已通过根级 title 兜底
         }
 
         return ParsedFeed(
@@ -162,7 +162,6 @@ class RssParser(private val client: OkHttpClient = OkHttpClient.Builder()
     private fun parseDate(dateStr: String): Long {
         if (dateStr.isBlank()) return System.currentTimeMillis()
         return try {
-            // RFC 1123 / RFC 3339 / ISO 8601 尝试
             val formats = listOf(
                 "EEE, dd MMM yyyy HH:mm:ss Z",
                 "yyyy-MM-dd'T'HH:mm:ssXXX",
@@ -177,7 +176,6 @@ class RssParser(private val client: OkHttpClient = OkHttpClient.Builder()
                         ?.time ?: System.currentTimeMillis()
                 } catch (_: Exception) {}
             }
-            // 数字时间戳
             dateStr.toLongOrNull()?.let { return it * 1000 }
             System.currentTimeMillis()
         } catch (_: Exception) {
