@@ -8,12 +8,16 @@ import com.succh.unifeed.data.rss.ContentExtractor
 import com.succh.unifeed.data.rss.DiscoveredFeed
 import com.succh.unifeed.data.rss.FeedDiscovery
 import com.succh.unifeed.data.rss.RssParser
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.select
 
 /**
  * 订阅源仓库：统一管理订阅 CRUD 与抓取
@@ -130,12 +134,39 @@ class FeedRepository(
         }
     }
 
+    /**
+     * RSSHub 镜像回退：并发试前3个镜像，取最先成功的；
+     * 全失败则串行兜底剩余镜像。
+     */
     private suspend fun fetchWithRsshubFallback(url: String): Pair<ParsedFeed, String> {
         if (!url.contains("rsshub.app")) {
             return parser.fetch(url) to url
         }
+
+        // 并发试前3个镜像
+        val topMirrors = RSSHUB_MIRRORS.take(3)
+        coroutineScope {
+            val deferreds = topMirrors.map { mirror ->
+                async {
+                    val candidate = if (mirror == RSSHUB_OFFICIAL) url else url.replace(RSSHUB_OFFICIAL, mirror)
+                    try {
+                        parser.fetch(candidate) to candidate
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+            }
+            // 取最先成功的结果
+            for (deferred in deferreds) {
+                val result = deferred.await()
+                if (result != null) return@coroutineScope result
+            }
+        }?.let { return it }
+
+        // 前3个全失败，串行试剩余镜像
         var lastError: Exception? = null
-        for (mirror in RSSHUB_MIRRORS) {
+        for (i in 3 until RSSHUB_MIRRORS.size) {
+            val mirror = RSSHUB_MIRRORS[i]
             val candidate = if (mirror == RSSHUB_OFFICIAL) url else url.replace(RSSHUB_OFFICIAL, mirror)
             try {
                 return parser.fetch(candidate) to candidate
@@ -227,7 +258,6 @@ class FeedRepository(
 
     private companion object {
         const val RSSHUB_OFFICIAL = "https://rsshub.app"
-        // RSSHub 公共实例（经实测验证可用性排序，官方 403 降级）
         val RSSHUB_MIRRORS = listOf(
             "https://rsshub.cups.moe",
             "https://rsshub-balancer.virworks.moe",
