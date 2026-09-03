@@ -112,7 +112,10 @@ fun UniFeedApp(
             },
             onAddFeed = { showAddDialog = true },
             onDeleteFeed = viewModel::deleteFeed,
-            onEntryClick = { selectedEntry = it; viewModel.markRead(it) },
+            onEntryClick = { entry ->
+                selectedEntry = entry
+                if (prefs.autoMarkRead) viewModel.markRead(entry)
+            },
             onStarToggle = viewModel::setStarred,
             onFilter = viewModel::setFilter,
             onRefresh = viewModel::refreshAll
