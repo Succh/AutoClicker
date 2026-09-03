@@ -14,7 +14,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * 订阅源仓库：统一管理订阅 CRUD 与抓取
@@ -94,7 +93,6 @@ class FeedRepository(
             )
             val newId = feedDao.insert(newFeed)
             val savedFeed = newFeed.copy(id = newId)
-            // 后台异步抓取文章，最多等 30s
             bgScope.launch {
                 try {
                     val (parsed, actualUrl) = fetchWithRsshubFallback(url)
@@ -109,7 +107,6 @@ class FeedRepository(
                     saveEntries(newId, parsed)
                     feedDao.updateUnreadCount(newId)
                 } catch (_: Exception) {
-                    // 后台抓取失败不影响订阅成功，用户手动刷新时可重试
                 }
             }
             Result.success(savedFeed)
@@ -230,12 +227,16 @@ class FeedRepository(
 
     private companion object {
         const val RSSHUB_OFFICIAL = "https://rsshub.app"
+        // RSSHub 公共实例（经实测验证可用性排序，官方 403 降级）
         val RSSHUB_MIRRORS = listOf(
-            RSSHUB_OFFICIAL,
+            "https://rsshub.cups.moe",
+            "https://rsshub-balancer.virworks.moe",
             "https://rsshub.rssforever.com",
-            "https://rsshub.pseudoyu.com",
+            "https://hub.slarker.me",
+            "https://rss.owo.nz",
             "https://rsshub.ktachibana.party",
-            "https://rsshub.moeyy.xyz"
+            "https://rsshub.umzzz.com",
+            RSSHUB_OFFICIAL
         )
     }
 }
