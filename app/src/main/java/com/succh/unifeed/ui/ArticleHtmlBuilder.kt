@@ -95,6 +95,9 @@ $orig
 </body></html>"""
     }
 
+    /**
+     * 正文 HTML 归一化：去脚本/样式，图片/链接相对地址补全为绝对地址。
+     */
     private fun normalize(html: String, baseUrl: String?): String {
         if (html.isBlank()) return "<p>（无正文内容）</p>"
         return try {
@@ -106,35 +109,32 @@ $orig
             }
             doc.select("script,style,ins,iframe,noscript,form,button,input").remove()
 
-            // 1) 图片：补全懒加载属性 → src；相对地址 → 绝对地址
+            // 1) 图片：懒加载属性补全 → src；各种相对地址 → 绝对地址
             doc.select("img").forEach { img ->
                 if (img.attr("src").isBlank()) {
-                    for (k in listOf("data-src", "data-original", "data-lazy-src", "data-url", "data-actualsrc", "data-lazy", "data-echo", "data-thumb")) {
+                    for (k in listOf("data-src", "data-original", "data-lazy-src", "data-url", "data-actualsrc", "data-lazy", "data-echo", "data-thumb", "data-srcset", "data-ks-lazyload")) {
                         val v = img.attr(k)
                         if (v.isNotBlank()) {
-                            img.attr("src", v)
+                            // 懒加载值可能是 srcset 格式（含逗号空格），只取第一个 URL
+                            img.attr("src", v.substringBefore(" ").substringBefore(","))
                             break
                         }
                     }
                 }
                 var src = img.attr("src")
-                if (src.startsWith("//")) src = "https:$src"
-                else if (src.startsWith("/") && !baseUrl.isNullOrBlank()) {
-                    src = resolve(baseUrl, src)
-                }
+                src = absolutize(src, baseUrl)
                 if (src.isNotBlank()) img.attr("src", src)
                 // 移除 srcset 避免 WebView 加载模糊/缩放变体，简化加载
                 img.removeAttr("srcset")
-                img.attr("loading", "lazy")
+                img.removeAttr("data-src")
+                img.removeAttr("data-original")
+                // 不设 loading=lazy：WebView 以 data: 加载时懒加载可能不触发，改为直接加载
+                img.removeAttr("loading")
             }
 
             // 2) 链接：相对地址 → 绝对地址
             doc.select("a[href]").forEach { a ->
-                var href = a.attr("href")
-                if (href.startsWith("//")) href = "https:$href"
-                else if (href.startsWith("/") && !baseUrl.isNullOrBlank()) {
-                    href = resolve(baseUrl, href)
-                }
+                val href = absolutize(a.attr("href"), baseUrl)
                 if (href.isNotBlank()) a.attr("href", href)
             }
 
@@ -142,6 +142,24 @@ $orig
         } catch (_: Exception) {
             "<p>${escape(html)}</p>"
         }
+    }
+
+    /**
+     * 把各种形态的相对地址转成绝对地址：
+     *  - "//host/path" → "https://host/path"
+     *  - "/path"、"path"、"./path"、"../path" → 基于 baseUrl 解析
+     *  - 已是 http/https/data/blob 等绝对地址 → 原样返回
+     */
+    private fun absolutize(url: String, baseUrl: String?): String {
+        if (url.isBlank()) return ""
+        if (url.startsWith("//")) return "https:$url"
+        val hasScheme = url.startsWith("http://") || url.startsWith("https://") ||
+            url.startsWith("data:") || url.startsWith("blob:") || url.startsWith("about:") ||
+            url.startsWith("file:") || url.startsWith("ftp:") || url.startsWith("mailto:") ||
+            url.startsWith("tel:") || url.startsWith("javascript:") || url.startsWith("#")
+        if (hasScheme) return url
+        if (baseUrl.isNullOrBlank()) return url
+        return resolve(baseUrl, url)
     }
 
     private fun resolve(baseUrl: String, path: String): String {
