@@ -44,6 +44,24 @@ class RssParser(private val client: OkHttpClient = OkHttpClient.Builder()
     }
 
     /**
+     * 抓取原始 HTML 页面内容
+     */
+    suspend fun fetchHtml(url: String): String {
+        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", "UniFeed/1.0 (RSS Reader; +https://github.com/Succh/AutoClicker)")
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    throw Exception("HTTP ${response.code}")
+                }
+                response.body?.string() ?: throw Exception("Empty body")
+            }
+        }
+    }
+
+    /**
      * 从 XML 字符串解析订阅源
      */
     fun parse(xml: String, sourceUrl: String): ParsedFeed {
@@ -98,7 +116,11 @@ class RssParser(private val client: OkHttpClient = OkHttpClient.Builder()
                             "title" -> if (currentEntry!!.title.isEmpty()) currentEntry = currentEntry!!.copy(title = text)
                             "link" -> if (currentEntry!!.link == null) currentEntry = currentEntry!!.copy(link = text)
                             "guid", "id" -> if (currentEntry!!.guid.isEmpty()) currentEntry = currentEntry!!.copy(guid = text)
-                            "description", "summary", "content" -> if (currentEntry!!.content == null) currentEntry = currentEntry!!.copy(content = text)
+                            "description", "summary", "content", "content:encoded", "encoded" -> {
+                                if (currentEntry!!.content == null || text.length > currentEntry!!.content!!.length) {
+                                    currentEntry = currentEntry!!.copy(content = text)
+                                }
+                            }
                             "pubDate", "published", "updated" -> if (currentEntry!!.publishedAt == 0L) {
                                 currentEntry = currentEntry!!.copy(publishedAt = parseDate(text))
                             }
