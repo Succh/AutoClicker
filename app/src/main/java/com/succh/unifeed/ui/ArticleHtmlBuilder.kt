@@ -87,6 +87,7 @@ hr { border: none; border-top: 1px solid ${p.border}; margin: 24px 0; }
 <html lang='zh'><head>
 <meta charset='UTF-8'>
 <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+<meta name='referrer' content='no-referrer'>
 <style>${buildCss(prefs.theme, prefs.fontSize, prefs.lineHeight, prefs.showImages, prefs.serifFont, prefs.justifyText)}</style>
 </head><body>
 <div class='meta'>$meta</div>
