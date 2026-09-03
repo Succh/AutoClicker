@@ -117,7 +117,8 @@ fun FeedListScreen(
                         FeedItem(
                             feed = feed,
                             selected = feed.id == selectedFeedId,
-                            onClick = { onSelectFeed(if (feed.id == selectedFeedId) null else feed.id) },
+                            // 点击任何源都直接选中并查看其文章，已选中的再点保持选中（不反选置空）
+                            onClick = { onSelectFeed(feed.id) },
                             onDelete = { onDeleteFeed(feed) }
                         )
                     }
