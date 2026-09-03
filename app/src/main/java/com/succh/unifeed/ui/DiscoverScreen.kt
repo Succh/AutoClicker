@@ -1,5 +1,6 @@
 package com.succh.unifeed.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -40,6 +41,15 @@ fun DiscoverScreen(
     var pending by remember { mutableStateOf<RsshubRoute?>(null) }
     var param by remember { mutableStateOf("") }
     var query by remember { mutableStateOf("") }
+
+    // 系统返回键：分类内→返回分类列表，否则→退出发现页
+    BackHandler {
+        if (cat != null) {
+            cat = null
+        } else {
+            onBack()
+        }
+    }
 
     // 需要补参数的路由确认对话框
     pending?.let { r ->
