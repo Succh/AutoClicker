@@ -24,7 +24,6 @@ fun UniFeedApp(
     val context = LocalContext.current
     val prefs = remember { ReaderPrefs(context) }
 
-    // 订阅成功自动切到文章 Tab 并退出发现页
     LaunchedEffect(state.selectedFeedId) {
         if (state.selectedFeedId != null) {
             tab = 1
@@ -32,7 +31,6 @@ fun UniFeedApp(
         }
     }
 
-    // 独立发现页：URL 输入 / 自动发现 / RSSHub 分类浏览 / 订阅反馈
     if (showDiscover) {
         DiscoverScreen(
             isDiscovering = state.isDiscovering,
@@ -47,7 +45,7 @@ fun UniFeedApp(
             },
             onDiscover = { viewModel.discoverFeeds(it) },
             onAddDirect = { viewModel.addFeed(it) },
-            onSubscribe = { viewModel.addFeed(it) },
+            onSubscribe = { url, title -> viewModel.addFeed(url, title) },
             onClearError = { viewModel.clearError() }
         )
         return
