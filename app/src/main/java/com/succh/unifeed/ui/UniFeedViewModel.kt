@@ -79,15 +79,24 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
         _uiState.update { it.copy(isDiscovering = false, discoveredFeeds = emptyList(), discoveryError = null) }
     }
 
+    /** 添加订阅：先尝试自动发现，发现不到再直接当 RSS 链接解析 */
     fun addFeed(url: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
-            val result = repo.addFeed(url.trim())
+            val trimmed = url.trim()
+            // 先尝试自动发现（输入普通网页时可自动探测 RSS）
+            val discoveryResult = repo.discoverFeeds(trimmed)
+            val feedUrl = if (discoveryResult.isSuccess && discoveryResult.getOrThrow().isNotEmpty()) {
+                discoveryResult.getOrThrow().first().feedUrl
+            } else {
+                trimmed // 直接当 RSS 链接处理
+            }
+            val result = repo.addFeed(feedUrl)
             _uiState.update { it.copy(isLoading = false) }
             result.onSuccess { feed ->
                 _uiState.update { it.copy(selectedFeedId = feed.id) }
             }.onFailure { e ->
-                _uiState.update { it.copy(error = e.message ?: "添加失败") }
+                _uiState.update { it.copy(error = e.message ?: "添加失败：无法识别该链接中的订阅源") }
             }
         }
     }
