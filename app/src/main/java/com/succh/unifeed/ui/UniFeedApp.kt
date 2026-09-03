@@ -38,8 +38,8 @@ fun UniFeedApp(
             isDiscovering = state.isDiscovering,
             discoveredFeeds = state.discoveredFeeds,
             discoveryError = state.discoveryError,
-            isSubscribing = state.isLoading,
-            subscribeError = state.error,
+            isSubscribing = state.isSubscribing,
+            subscribeError = state.subscribeError,
             onBack = {
                 showDiscover = false
                 viewModel.clearDiscovery()
