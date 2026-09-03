@@ -22,8 +22,14 @@ fun UniFeedApp(
     var selectedEntry by remember { mutableStateOf<Entry?>(null) }
     var discoverInput by remember { mutableStateOf("") }
     var showRsshub by remember { mutableStateOf(false) }
+    var tab by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
     val prefs = remember { ReaderPrefs(context) }
+
+    // 选中订阅源时自动切到文章 Tab
+    LaunchedEffect(state.selectedFeedId) {
+        if (state.selectedFeedId != null) tab = 1
+    }
 
     if (showAddDialog) {
         AddFeedDialog(
@@ -96,9 +102,14 @@ fun UniFeedApp(
         )
     } else {
         MainTabScreen(
+            tab = tab,
+            onTabChange = { tab = it },
             state = state,
             prefs = prefs,
-            onSelectFeed = viewModel::selectFeed,
+            onSelectFeed = { feedId ->
+                viewModel.selectFeed(feedId)
+                if (feedId != null) tab = 1
+            },
             onAddFeed = { showAddDialog = true },
             onDeleteFeed = viewModel::deleteFeed,
             onEntryClick = { selectedEntry = it; viewModel.markRead(it) },
@@ -111,6 +122,8 @@ fun UniFeedApp(
 
 @Composable
 private fun MainTabScreen(
+    tab: Int,
+    onTabChange: (Int) -> Unit,
     state: UniFeedUiState,
     prefs: ReaderPrefs,
     onSelectFeed: (Long?) -> Unit,
@@ -121,32 +134,30 @@ private fun MainTabScreen(
     onFilter: (FilterMode) -> Unit,
     onRefresh: () -> Unit
 ) {
-    var tab by remember { mutableStateOf(0) }
-
     Scaffold(
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(
                     selected = tab == 0,
-                    onClick = { tab = 0 },
+                    onClick = { onTabChange(0) },
                     icon = { Icon(Icons.Default.RssFeed, contentDescription = null) },
                     label = { Text("订阅源") }
                 )
                 NavigationBarItem(
                     selected = tab == 1,
-                    onClick = { tab = 1 },
+                    onClick = { onTabChange(1) },
                     icon = { Icon(Icons.Default.Article, contentDescription = null) },
                     label = { Text("文章") }
                 )
                 NavigationBarItem(
                     selected = tab == 2,
-                    onClick = { tab = 2 },
+                    onClick = { onTabChange(2) },
                     icon = { Icon(Icons.Default.Star, contentDescription = null) },
                     label = { Text("收藏") }
                 )
                 NavigationBarItem(
                     selected = tab == 3,
-                    onClick = { tab = 3 },
+                    onClick = { onTabChange(3) },
                     icon = { Icon(Icons.Default.Settings, contentDescription = null) },
                     label = { Text("设置") }
                 )
