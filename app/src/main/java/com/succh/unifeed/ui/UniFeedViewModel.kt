@@ -80,14 +80,15 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * 添加订阅：RSSHub 源走即时订阅（先存后取），普通源走原有抓取流程
+     * 可传 titleHint 用于即时订阅时显示标题
      */
-    fun addFeed(url: String) {
+    fun addFeed(url: String, titleHint: String? = null) {
         viewModelScope.launch {
             _uiState.update { it.copy(isSubscribing = true, subscribeError = null) }
             val trimmed = url.trim()
             // RSSHub 源：即时订阅，不等待网络
             if (trimmed.contains("rsshub.app")) {
-                val result = repo.addFeedInstant(trimmed)
+                val result = repo.addFeedInstant(trimmed, titleHint)
                 result.onSuccess { feed ->
                     _uiState.update { it.copy(isSubscribing = false, selectedFeedId = feed.id) }
                 }.onFailure { e ->
