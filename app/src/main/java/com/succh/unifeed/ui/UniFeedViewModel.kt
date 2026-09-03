@@ -84,12 +84,19 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
             val trimmed = url.trim()
-            // 先尝试自动发现（输入普通网页时可自动探测 RSS）
-            val discoveryResult = repo.discoverFeeds(trimmed)
-            val feedUrl = if (discoveryResult.isSuccess && discoveryResult.getOrThrow().isNotEmpty()) {
-                discoveryResult.getOrThrow().first().feedUrl
+            // 明显是 RSS 链接时跳过发现，直接解析
+            val looksLikeFeed = trimmed.endsWith(".xml") || trimmed.endsWith(".rss") ||
+                trimmed.endsWith(".atom") || trimmed.contains("/feed") || trimmed.contains("rsshub")
+            val feedUrl = if (looksLikeFeed) {
+                trimmed
             } else {
-                trimmed // 直接当 RSS 链接处理
+                // 先尝试自动发现（输入普通网页时可自动探测 RSS）
+                val discoveryResult = repo.discoverFeeds(trimmed)
+                if (discoveryResult.isSuccess && discoveryResult.getOrThrow().isNotEmpty()) {
+                    discoveryResult.getOrThrow().first().feedUrl
+                } else {
+                    trimmed // 直接当 RSS 链接处理
+                }
             }
             val result = repo.addFeed(feedUrl)
             _uiState.update { it.copy(isLoading = false) }
