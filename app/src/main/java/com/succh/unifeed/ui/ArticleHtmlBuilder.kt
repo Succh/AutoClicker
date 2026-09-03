@@ -109,7 +109,7 @@ $orig
             }
             doc.select("script,style,ins,iframe,noscript,form,button,input").remove()
 
-            // 1) 图片：懒加载属性补全 → src；各种相对地址 → 绝对地址
+            // 1) 图片：懒加载属性补全 → src；各种相对地址 → 绝对地址；加 referrerpolicy 防防盗链
             doc.select("img").forEach { img ->
                 if (img.attr("src").isBlank()) {
                     for (k in listOf("data-src", "data-original", "data-lazy-src", "data-url", "data-actualsrc", "data-lazy", "data-echo", "data-thumb", "data-srcset", "data-ks-lazyload")) {
@@ -128,8 +128,10 @@ $orig
                 img.removeAttr("srcset")
                 img.removeAttr("data-src")
                 img.removeAttr("data-original")
-                // 不设 loading=lazy：WebView 以 data: 加载时懒加载可能不触发，改为直接加载
+                // 不设 loading=lazy：WebView 以 data: 加载时懒加载可能不触发
                 img.removeAttr("loading")
+                // 防盗链：不发送 Referer，绕过图床 Referer 校验
+                img.attr("referrerpolicy", "no-referrer")
             }
 
             // 2) 链接：相对地址 → 绝对地址
