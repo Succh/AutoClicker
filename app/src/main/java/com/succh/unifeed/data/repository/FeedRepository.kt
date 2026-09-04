@@ -140,7 +140,6 @@ class FeedRepository(
      */
     private suspend fun fetchWithRsshubFallback(url: String): Pair<ParsedFeed, String> {
         if (!url.contains("rsshub.app")) {
-            // 非 RSSHub 直接抓取，增加重试
             return try {
                 parser.fetch(url) to url
             } catch (e: Exception) {
@@ -164,12 +163,7 @@ class FeedRepository(
                     val candidate = url.replace(RSSHUB_OFFICIAL, mirror)
                     try {
                         val result = parser.fetch(candidate)
-                        // 检测是否是 CF 防护页面
-                        if (isCloudflareChallenge(result.content ?: "")) {
-                            null
-                        } else {
-                            result to candidate
-                        }
+                        result to candidate
                     } catch (e: Exception) {
                         null
                     }
@@ -178,8 +172,14 @@ class FeedRepository(
             for (deferred in deferreds) {
                 val result = deferred.await()
                 if (result != null) {
-                    successResult = result
-                    break
+                    // 检测返回内容是否是 CF 防护页面
+                    val isChallenge = result.first.entries.isEmpty() && 
+                        (result.first.title.contains("Just a moment") || 
+                         result.first.title.contains("Cloudflare"))
+                    if (!isChallenge) {
+                        successResult = result
+                        break
+                    }
                 }
             }
         }
@@ -191,23 +191,16 @@ class FeedRepository(
             val candidate = url.replace(RSSHUB_OFFICIAL, mirror)
             try {
                 val result = parser.fetch(candidate)
-                if (!isCloudflareChallenge(result.content ?: "")) {
+                val isChallenge = result.entries.isEmpty() && 
+                    (result.title.contains("Just a moment") || 
+                     result.title.contains("Cloudflare"))
+                if (!isChallenge) {
                     return result to candidate
                 }
             } catch (_: Exception) {
             }
         }
         throw Exception("RSSHub 所有镜像均不可用，该路由可能暂不支持")
-    }
-
-    /**
-     * 检测是否是 Cloudflare 防护页面
-     */
-    private fun isCloudflareChallenge(xml: String): Boolean {
-        return xml.contains("Just a moment...") 
-            || xml.contains("cf-chl")
-            || xml.contains("challenge-platform")
-            || xml.contains("Enable JavaScript and cookies to continue")
     }
 
     suspend fun refreshFeed(feedId: Long) {
