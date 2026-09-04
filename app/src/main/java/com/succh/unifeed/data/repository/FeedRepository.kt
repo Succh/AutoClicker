@@ -47,7 +47,7 @@ class FeedRepository(
 
     suspend fun addFeed(url: String): Result<Feed> {
         return try {
-            val (parsed, actualUrl) = fetchWithRsshubFallback(url)
+            val (parsed, actualUrl) = fetchWithSmartFallback(url)
             val existing = feedDao.getByUrl(url) ?: feedDao.getByUrl(actualUrl)
             val feed = if (existing != null) {
                 existing.copy(
@@ -97,7 +97,7 @@ class FeedRepository(
             val savedFeed = newFeed.copy(id = newId)
             bgScope.launch {
                 try {
-                    val (parsed, actualUrl) = fetchWithRsshubFallback(url)
+                    val (parsed, actualUrl) = fetchWithSmartFallback(url)
                     feedDao.update(savedFeed.copy(
                         title = parsed.title.ifEmpty { inferredTitle },
                         siteUrl = parsed.siteUrl,
@@ -133,12 +133,12 @@ class FeedRepository(
     }
 
     /**
-     * RSSHub 镜像回退：
-     * 1. 非 rsshub 直接抓取
-     * 2. rsshub 优先试 cups.moe（已知稳定），再试其他镜像
-     * 3. 检测 CF 防护页面，自动跳过
+     * 智能镜像回退策略：
+     * 1. 非 RSSHub 直接抓取
+     * 2. RSSHub 路由先按前缀匹配优先镜像
+     * 3. 并发测试前两个候选镜像，取第一个成功的
      */
-    private suspend fun fetchWithRsshubFallback(url: String): Pair<ParsedFeed, String> {
+    private suspend fun fetchWithSmartFallback(url: String): Pair<ParsedFeed, String> {
         if (!url.contains("rsshub.app")) {
             return try {
                 parser.fetch(url) to url
@@ -147,66 +147,96 @@ class FeedRepository(
             }
         }
 
-        // RSSHub 优先尝试可靠镜像
-        val mirrors = listOf(
-            RSSHUB_CUPS,      // 最稳定
-            RSSHUB_BALANCER,  // 备选
-            RSSHUB_SLARKER,   // 备选
-            RSSHUB_OFFICIAL   // 最后
-        )
+        // 提取路由路径
+        val path = extractRsshubPath(url)
+        if (path.isEmpty()) throw Exception("无效的 RSSHub URL")
+
+        // 根据路由前缀选择优先镜像
+        val mirrorGroup = getMirrorForRoute(path)
         
-        // 并发尝试前两个镜像
+        // 并发尝试候选镜像
         var successResult: Pair<ParsedFeed, String>? = null
         coroutineScope {
-            val deferreds = mirrors.take(2).map { mirror ->
+            val candidates = mirrorGroup.map { mirror ->
                 async {
-                    val candidate = url.replace(RSSHUB_OFFICIAL, mirror)
+                    val candidate = buildRsshubUrl(mirror, path)
                     try {
                         val result = parser.fetch(candidate)
-                        result to candidate
-                    } catch (e: Exception) {
+                        // 检查是否有实际内容
+                        if (result.entries.isNotEmpty() || result.title.isNotEmpty()) {
+                            result to candidate
+                        } else {
+                            null
+                        }
+                    } catch (_: Exception) {
                         null
                     }
                 }
             }
-            for (deferred in deferreds) {
-                val result = deferred.await()
+            for (candidate in candidates) {
+                val result = candidate.await()
                 if (result != null) {
-                    // 检测返回内容是否是 CF 防护页面
-                    val isChallenge = result.first.entries.isEmpty() && 
-                        (result.first.title.contains("Just a moment") || 
-                         result.first.title.contains("Cloudflare"))
-                    if (!isChallenge) {
-                        successResult = result
-                        break
-                    }
+                    successResult = result
+                    break
                 }
             }
         }
+        
         if (successResult != null) return successResult!!
+        
+        // 最后尝试官方站（可能被 CF 挡）
+        try {
+            val result = parser.fetch(url)
+            return result to url
+        } catch (_: Exception) {}
+        
+        throw Exception("所有镜像均不可用，该路由可能暂不支持")
+    }
 
-        // 串行尝试剩余镜像
-        for (i in 2 until mirrors.size) {
-            val mirror = mirrors[i]
-            val candidate = url.replace(RSSHUB_OFFICIAL, mirror)
-            try {
-                val result = parser.fetch(candidate)
-                val isChallenge = result.entries.isEmpty() && 
-                    (result.title.contains("Just a moment") || 
-                     result.title.contains("Cloudflare"))
-                if (!isChallenge) {
-                    return result to candidate
-                }
-            } catch (_: Exception) {
+    /**
+     * 根据路由前缀返回镜像组（顺序越前优先级越高）
+     */
+    private fun getMirrorForRoute(path: String): List<String> {
+        return when {
+            // 国内社交/资讯类路由
+            path.startsWith("weibo/") || path.startsWith("zhihu/") || path.startsWith("bilibili/") ||
+            path.startsWith("jike/") || path.startsWith("douban/") || path.startsWith("tieba/") ||
+            path.startsWith("toutiao/") || path.startsWith("huoqu/") || path.startsWith("xueqiu/") -> {
+                listOf(RSSHUB_OWO, RSSHUB_CUPS, RSSHUB_OFFICIAL)
             }
+            // 技术类路由
+            path.startsWith("github/") || path.startsWith("hackernews") || path.startsWith("v2ex/") ||
+            path.startsWith("lobsters/") -> {
+                listOf(RSSHUB_CUPS, RSSHUB_OWO, RSSHUB_OFFICIAL)
+            }
+            // 默认优先 cups.moe
+            else -> listOf(RSSHUB_CUPS, RSSHUB_OWO, RSSHUB_OFFICIAL)
         }
-        throw Exception("RSSHub 所有镜像均不可用，该路由可能暂不支持")
+    }
+
+    private fun extractRsshubPath(url: String): String {
+        try {
+            val uri = android.net.Uri.parse(url)
+            val path = uri.path?.trim('/') ?: ""
+            // 去掉域名部分，保留路由路径
+            return if (path.startsWith("rsshub")) {
+                path.removePrefix("rsshub").trimStart('/')
+            } else {
+                path
+            }
+        } catch (_: Exception) {
+            return ""
+        }
+    }
+
+    private fun buildRsshubUrl(mirror: String, path: String): String {
+        return "$mirror/$path"
     }
 
     suspend fun refreshFeed(feedId: Long) {
         val feed = feedDao.getById(feedId) ?: return
         try {
-            val (parsed, _) = fetchWithRsshubFallback(feed.url)
+            val (parsed, _) = fetchWithSmartFallback(feed.url)
             saveEntries(feed.id, parsed)
             feedDao.update(feed.copy(lastUpdated = System.currentTimeMillis()))
             feedDao.updateUnreadCount(feed.id)
@@ -285,7 +315,9 @@ class FeedRepository(
     private companion object {
         const val RSSHUB_OFFICIAL = "https://rsshub.app"
         const val RSSHUB_CUPS = "https://rsshub.cups.moe"
+        const val RSSHUB_OWO = "https://rss.owo.nz"
         const val RSSHUB_BALANCER = "https://rsshub-balancer.virworks.moe"
         const val RSSHUB_SLARKER = "https://hub.slarker.me"
+        const val RSSHUB_RSSFOREVER = "https://rsshub.rssforever.com"
     }
 }
