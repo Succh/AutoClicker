@@ -133,23 +133,43 @@ class FeedRepository(
     }
 
     /**
-     * RSSHub 镜像回退：并发试前3个镜像，取最先成功的；
-     * 全失败则串行兜底剩余镜像。
+     * RSSHub 镜像回退：
+     * 1. 非 rsshub 直接抓取
+     * 2. rsshub 优先试 cups.moe（已知稳定），再试其他镜像
+     * 3. 检测 CF 防护页面，自动跳过
      */
     private suspend fun fetchWithRsshubFallback(url: String): Pair<ParsedFeed, String> {
         if (!url.contains("rsshub.app")) {
-            return parser.fetch(url) to url
+            // 非 RSSHub 直接抓取，增加重试
+            return try {
+                parser.fetch(url) to url
+            } catch (e: Exception) {
+                throw Exception("源抓取失败: ${e.message}")
+            }
         }
 
-        // 并发试前3个镜像
-        val topMirrors = RSSHUB_MIRRORS.take(3)
+        // RSSHub 优先尝试可靠镜像
+        val mirrors = listOf(
+            RSSHUB_CUPS,      // 最稳定
+            RSSHUB_BALANCER,  // 备选
+            RSSHUB_SLARKER,   // 备选
+            RSSHUB_OFFICIAL   // 最后
+        )
+        
+        // 并发尝试前两个镜像
         var successResult: Pair<ParsedFeed, String>? = null
         coroutineScope {
-            val deferreds = topMirrors.map { mirror ->
+            val deferreds = mirrors.take(2).map { mirror ->
                 async {
-                    val candidate = if (mirror == RSSHUB_OFFICIAL) url else url.replace(RSSHUB_OFFICIAL, mirror)
+                    val candidate = url.replace(RSSHUB_OFFICIAL, mirror)
                     try {
-                        parser.fetch(candidate) to candidate
+                        val result = parser.fetch(candidate)
+                        // 检测是否是 CF 防护页面
+                        if (isCloudflareChallenge(result.content ?: "")) {
+                            null
+                        } else {
+                            result to candidate
+                        }
                     } catch (e: Exception) {
                         null
                     }
@@ -165,18 +185,29 @@ class FeedRepository(
         }
         if (successResult != null) return successResult!!
 
-        // 前3个全失败，串行试剩余镜像
-        var lastError: Exception? = null
-        for (i in 3 until RSSHUB_MIRRORS.size) {
-            val mirror = RSSHUB_MIRRORS[i]
-            val candidate = if (mirror == RSSHUB_OFFICIAL) url else url.replace(RSSHUB_OFFICIAL, mirror)
+        // 串行尝试剩余镜像
+        for (i in 2 until mirrors.size) {
+            val mirror = mirrors[i]
+            val candidate = url.replace(RSSHUB_OFFICIAL, mirror)
             try {
-                return parser.fetch(candidate) to candidate
-            } catch (e: Exception) {
-                lastError = e
+                val result = parser.fetch(candidate)
+                if (!isCloudflareChallenge(result.content ?: "")) {
+                    return result to candidate
+                }
+            } catch (_: Exception) {
             }
         }
-        throw lastError ?: Exception("RSSHub 实例均不可用")
+        throw Exception("RSSHub 所有镜像均不可用，该路由可能暂不支持")
+    }
+
+    /**
+     * 检测是否是 Cloudflare 防护页面
+     */
+    private fun isCloudflareChallenge(xml: String): Boolean {
+        return xml.contains("Just a moment...") 
+            || xml.contains("cf-chl")
+            || xml.contains("challenge-platform")
+            || xml.contains("Enable JavaScript and cookies to continue")
     }
 
     suspend fun refreshFeed(feedId: Long) {
@@ -260,15 +291,8 @@ class FeedRepository(
 
     private companion object {
         const val RSSHUB_OFFICIAL = "https://rsshub.app"
-        val RSSHUB_MIRRORS = listOf(
-            "https://rsshub.cups.moe",
-            "https://rsshub-balancer.virworks.moe",
-            "https://rsshub.rssforever.com",
-            "https://hub.slarker.me",
-            "https://rss.owo.nz",
-            "https://rsshub.ktachibana.party",
-            "https://rsshub.umzzz.com",
-            RSSHUB_OFFICIAL
-        )
+        const val RSSHUB_CUPS = "https://rsshub.cups.moe"
+        const val RSSHUB_BALANCER = "https://rsshub-balancer.virworks.moe"
+        const val RSSHUB_SLARKER = "https://hub.slarker.me"
     }
 }
