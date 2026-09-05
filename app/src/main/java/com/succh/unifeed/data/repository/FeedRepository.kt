@@ -149,7 +149,7 @@ class FeedRepository(
         return try {
             val uri = android.net.Uri.parse(url)
             val path = uri.path?.trim('/') ?: ""
-            if (url.contains("rsshub.app") && path.isNotEmpty()) {
+            if ((url.contains("rsshub.app") || url.contains("succh.zone.id")) && path.isNotEmpty()) {
                 val parts = path.split("/")
                 parts.takeLast(2).joinToString("/")
             } else {
@@ -225,20 +225,21 @@ class FeedRepository(
      * 根据路由前缀返回镜像组（顺序越前优先级越高）
      */
     private fun getMirrorForRoute(path: String): List<String> {
+        // 默认优先自建实例，其次按路由类型分镜像
         val routeBased = when {
             // 国内社交/资讯类路由
             path.startsWith("weibo/") || path.startsWith("zhihu/") || path.startsWith("bilibili/") ||
             path.startsWith("jike/") || path.startsWith("douban/") || path.startsWith("tieba/") ||
             path.startsWith("toutiao/") || path.startsWith("huoqu/") || path.startsWith("xueqiu/") -> {
-                listOf(RSSHUB_OWO, RSSHUB_CUPS, RSSHUB_OFFICIAL)
+                listOf(RSSHUB_DEFAULT, RSSHUB_OWO, RSSHUB_CUPS, RSSHUB_OFFICIAL)
             }
             // 技术类路由
             path.startsWith("github/") || path.startsWith("hackernews") || path.startsWith("v2ex/") ||
             path.startsWith("lobsters/") -> {
-                listOf(RSSHUB_CUPS, RSSHUB_OWO, RSSHUB_OFFICIAL)
+                listOf(RSSHUB_DEFAULT, RSSHUB_CUPS, RSSHUB_OWO, RSSHUB_OFFICIAL)
             }
-            // 默认优先 cups.moe
-            else -> listOf(RSSHUB_CUPS, RSSHUB_OWO, RSSHUB_OFFICIAL)
+            // 默认优先自建实例 + cups.moe
+            else -> listOf(RSSHUB_DEFAULT, RSSHUB_CUPS, RSSHUB_OWO, RSSHUB_OFFICIAL)
         }
         // 用户自定义实例插队到首位，其余镜像作为回退
         return customRsshubInstance?.let { listOf(it) + routeBased } ?: routeBased
@@ -343,6 +344,8 @@ class FeedRepository(
     }
 
     private companion object {
+        /** 默认自建实例（老板的专属实例，优先使用） */
+        const val RSSHUB_DEFAULT = "https://succh.zone.id"
         const val RSSHUB_OFFICIAL = "https://rsshub.app"
         const val RSSHUB_CUPS = "https://rsshub.cups.moe"
         const val RSSHUB_OWO = "https://rss.owo.nz"
@@ -350,9 +353,9 @@ class FeedRepository(
         const val RSSHUB_SLARKER = "https://hub.slarker.me"
         const val RSSHUB_RSSFOREVER = "https://rsshub.rssforever.com"
 
-        /** 公共镜像全集（用于域名识别） */
+        /** 公共镜像全集（用于域名识别），含默认自建实例 */
         val PUBLIC_MIRRORS = listOf(
-            RSSHUB_OFFICIAL, RSSHUB_CUPS, RSSHUB_OWO,
+            RSSHUB_DEFAULT, RSSHUB_OFFICIAL, RSSHUB_CUPS, RSSHUB_OWO,
             RSSHUB_BALANCER, RSSHUB_SLARKER, RSSHUB_RSSFOREVER
         )
     }

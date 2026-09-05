@@ -87,7 +87,8 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
             _uiState.update { it.copy(isSubscribing = true, subscribeError = null) }
             val trimmed = url.trim()
             // RSSHub 源：即时订阅，不等待网络
-            if (trimmed.contains("rsshub.app")) {
+            if (trimmed.contains("rsshub.app") || trimmed.contains("succh.zone.id") ||
+                trimmed.contains("rsshub.cups.moe") || trimmed.contains("rss.owo.nz")) {
                 val result = repo.addFeedInstant(trimmed, titleHint)
                 result.onSuccess { feed ->
                     _uiState.update { it.copy(isSubscribing = false, selectedFeedId = feed.id) }

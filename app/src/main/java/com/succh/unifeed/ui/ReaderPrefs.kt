@@ -77,7 +77,7 @@ class ReaderPrefs(context: Context) {
             sp.edit().putBoolean(KEY_AUTO_READ, value).apply()
         }
 
-    /** 自定义 RSSHub 实例地址（null 表示使用内置自动镜像策略） */
+    /** 自定义 RSSHub 实例地址（null 表示使用内置默认实例策略） */
     private val _rsshubInstance = mutableStateOf(sp.getString(KEY_RSSHUB_INSTANCE, null))
     var rsshubInstance: String?
         get() = _rsshubInstance.value
@@ -86,6 +86,10 @@ class ReaderPrefs(context: Context) {
             _rsshubInstance.value = v
             sp.edit().putString(KEY_RSSHUB_INSTANCE, v).apply()
         }
+
+    /** 当前生效的 RSSHub 实例：用户自定义 > 默认自建实例 */
+    val effectiveRsshubInstance: String
+        get() = rsshubInstance ?: DEFAULT_RSSHUB_INSTANCE
 
     private fun loadTheme(): ReaderTheme {
         val name = sp.getString(KEY_THEME, ReaderTheme.LIGHT.name)
@@ -102,5 +106,8 @@ class ReaderPrefs(context: Context) {
         const val KEY_LIST_SUMMARY = "list_summary"
         const val KEY_AUTO_READ = "auto_read"
         const val KEY_RSSHUB_INSTANCE = "rsshub_instance"
+
+        /** 默认自建 RSSHub 实例 */
+        const val DEFAULT_RSSHUB_INSTANCE = "https://succh.zone.id"
     }
 }
