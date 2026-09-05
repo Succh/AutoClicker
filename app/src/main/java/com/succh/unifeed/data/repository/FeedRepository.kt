@@ -30,6 +30,34 @@ class FeedRepository(
     private val folderDao = db.folderDao()
     private val bgScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    /**
+     * 可配置的自定义 RSSHub 实例地址（用户在设置页填写）。
+     * 非空时会插入镜像组首位优先使用；失败仍自动回退公共镜像。
+     */
+    @Volatile
+    var customRsshubInstance: String? = null
+        set(value) {
+            field = value?.trim()?.trimEnd('/')?.takeIf { it.isNotEmpty() }
+        }
+
+    /**
+     * 已知 RSSHub 实例域名（官方 + 公共镜像 + 用户自定义）。
+     * 用于判断一个 URL 是否属于 RSSHub 源。
+     */
+    private val knownRsshubHosts: List<String>
+        get() = buildList {
+            add("rsshub.app")
+            addAll(PUBLIC_MIRRORS.map { it.removePrefix("https://").removePrefix("http://") })
+            customRsshubInstance?.let { inst ->
+                runCatching { android.net.Uri.parse(inst).host }.getOrNull()?.let { add(it) }
+            }
+        }
+
+    private fun isRsshubUrl(url: String): Boolean {
+        return runCatching { android.net.Uri.parse(url).host }.getOrNull()
+            ?.let { host -> knownRsshubHosts.any { it.equals(host, ignoreCase = true) } } ?: false
+    }
+
     fun observeFeeds(): Flow<List<Feed>> = feedDao.observeAll()
     fun observeEntries(feedId: Long): Flow<List<Entry>> = entryDao.observeByFeed(feedId)
     fun observeAllEntries(): Flow<List<Entry>> = entryDao.observeAll()
@@ -139,7 +167,7 @@ class FeedRepository(
      * 3. 并发测试前两个候选镜像，取第一个成功的
      */
     private suspend fun fetchWithSmartFallback(url: String): Pair<ParsedFeed, String> {
-        if (!url.contains("rsshub.app")) {
+        if (!isRsshubUrl(url)) {
             return try {
                 parser.fetch(url) to url
             } catch (e: Exception) {
@@ -197,7 +225,7 @@ class FeedRepository(
      * 根据路由前缀返回镜像组（顺序越前优先级越高）
      */
     private fun getMirrorForRoute(path: String): List<String> {
-        return when {
+        val routeBased = when {
             // 国内社交/资讯类路由
             path.startsWith("weibo/") || path.startsWith("zhihu/") || path.startsWith("bilibili/") ||
             path.startsWith("jike/") || path.startsWith("douban/") || path.startsWith("tieba/") ||
@@ -212,6 +240,8 @@ class FeedRepository(
             // 默认优先 cups.moe
             else -> listOf(RSSHUB_CUPS, RSSHUB_OWO, RSSHUB_OFFICIAL)
         }
+        // 用户自定义实例插队到首位，其余镜像作为回退
+        return customRsshubInstance?.let { listOf(it) + routeBased } ?: routeBased
     }
 
     private fun extractRsshubPath(url: String): String {
@@ -319,5 +349,11 @@ class FeedRepository(
         const val RSSHUB_BALANCER = "https://rsshub-balancer.virworks.moe"
         const val RSSHUB_SLARKER = "https://hub.slarker.me"
         const val RSSHUB_RSSFOREVER = "https://rsshub.rssforever.com"
+
+        /** 公共镜像全集（用于域名识别） */
+        val PUBLIC_MIRRORS = listOf(
+            RSSHUB_OFFICIAL, RSSHUB_CUPS, RSSHUB_OWO,
+            RSSHUB_BALANCER, RSSHUB_SLARKER, RSSHUB_RSSFOREVER
+        )
     }
 }

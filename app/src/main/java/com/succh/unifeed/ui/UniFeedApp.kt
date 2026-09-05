@@ -24,6 +24,12 @@ fun UniFeedApp(
     val context = LocalContext.current
     val prefs = remember { ReaderPrefs(context) }
 
+    fun updateRsshubInstance(instance: String?) {
+        prefs.rsshubInstance = instance
+        (context.applicationContext as? UniFeedApp)
+            ?.repository?.customRsshubInstance = instance
+    }
+
     LaunchedEffect(state.selectedFeedId) {
         if (state.selectedFeedId != null) {
             tab = 1
@@ -163,7 +169,8 @@ private fun MainTabScreen(
             )
             3 -> SettingsScreen(
                 prefs = prefs,
-                modifier = Modifier.padding(padding)
+                modifier = Modifier.padding(padding),
+                onRsshubInstanceChange = ::updateRsshubInstance
             )
         }
     }
