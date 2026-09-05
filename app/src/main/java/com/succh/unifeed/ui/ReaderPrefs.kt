@@ -77,6 +77,16 @@ class ReaderPrefs(context: Context) {
             sp.edit().putBoolean(KEY_AUTO_READ, value).apply()
         }
 
+    /** 自定义 RSSHub 实例地址（null 表示使用内置自动镜像策略） */
+    private val _rsshubInstance = mutableStateOf(sp.getString(KEY_RSSHUB_INSTANCE, null))
+    var rsshubInstance: String?
+        get() = _rsshubInstance.value
+        set(value) {
+            val v = value?.trim()?.trimEnd('/')?.takeIf { it.isNotEmpty() }
+            _rsshubInstance.value = v
+            sp.edit().putString(KEY_RSSHUB_INSTANCE, v).apply()
+        }
+
     private fun loadTheme(): ReaderTheme {
         val name = sp.getString(KEY_THEME, ReaderTheme.LIGHT.name)
         return ReaderTheme.entries.firstOrNull { it.name == name } ?: ReaderTheme.LIGHT
@@ -91,5 +101,6 @@ class ReaderPrefs(context: Context) {
         const val KEY_JUSTIFY = "justify_text"
         const val KEY_LIST_SUMMARY = "list_summary"
         const val KEY_AUTO_READ = "auto_read"
+        const val KEY_RSSHUB_INSTANCE = "rsshub_instance"
     }
 }
