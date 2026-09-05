@@ -26,7 +26,8 @@ fun UniFeedApp(
 
     fun updateRsshubInstance(instance: String?) {
         prefs.rsshubInstance = instance
-        (context.applicationContext as? UniFeedApp)
+        // 注意：必须用全限定名，避免与本文件的 Composable 函数 UniFeedApp 重名冲突
+        (context.applicationContext as? com.succh.unifeed.UniFeedApp)
             ?.repository?.customRsshubInstance = instance
     }
 
@@ -95,7 +96,8 @@ fun UniFeedApp(
             },
             onStarToggle = viewModel::setStarred,
             onFilter = viewModel::setFilter,
-            onRefresh = viewModel::refreshAll
+            onRefresh = viewModel::refreshAll,
+            onRsshubInstanceChange = { updateRsshubInstance(it) }
         )
     }
 }
@@ -112,7 +114,8 @@ private fun MainTabScreen(
     onEntryClick: (Entry) -> Unit,
     onStarToggle: (Entry, Boolean) -> Unit,
     onFilter: (FilterMode) -> Unit,
-    onRefresh: () -> Unit
+    onRefresh: () -> Unit,
+    onRsshubInstanceChange: (String?) -> Unit = {}
 ) {
     Scaffold(
         bottomBar = {
@@ -170,7 +173,7 @@ private fun MainTabScreen(
             3 -> SettingsScreen(
                 prefs = prefs,
                 modifier = Modifier.padding(padding),
-                onRsshubInstanceChange = ::updateRsshubInstance
+                onRsshubInstanceChange = onRsshubInstanceChange
             )
         }
     }
