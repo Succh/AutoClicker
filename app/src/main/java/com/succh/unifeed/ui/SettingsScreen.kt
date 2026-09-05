@@ -39,7 +39,8 @@ private val RSSHUB_PRESETS = listOf(
 @Composable
 fun SettingsScreen(
     prefs: ReaderPrefs,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onRsshubInstanceChange: (String?) -> Unit = {}
 ) {
     var instanceInput by remember(prefs.rsshubInstance) { mutableStateOf(prefs.rsshubInstance ?: "") }
 
@@ -75,12 +76,16 @@ fun SettingsScreen(
                     TextButton(onClick = {
                         instanceInput = ""
                         prefs.rsshubInstance = null
+                        onRsshubInstanceChange(null)
                     }) { Text("恢复自动") }
                 }
             }
         )
         TextButton(
-            onClick = { prefs.rsshubInstance = instanceInput },
+            onClick = {
+                prefs.rsshubInstance = instanceInput
+                onRsshubInstanceChange(instanceInput.trim())
+            },
             enabled = instanceInput.trim().isNotEmpty()
         ) { Text("保存") }
 
@@ -90,6 +95,7 @@ fun SettingsScreen(
                 AssistChip(onClick = {
                     instanceInput = preset
                     prefs.rsshubInstance = preset
+                    onRsshubInstanceChange(preset)
                 }, label = { Text(preset.removePrefix("https://")) })
             }
         }
@@ -98,6 +104,7 @@ fun SettingsScreen(
                 AssistChip(onClick = {
                     instanceInput = preset
                     prefs.rsshubInstance = preset
+                    onRsshubInstanceChange(preset)
                 }, label = { Text(preset.removePrefix("https://")) })
             }
         }
