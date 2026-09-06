@@ -22,11 +22,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.net.HttpURLConnection
+import java.net.URL
 
 /** 预设的公共 RSSHub 实例（首个为默认自建实例） */
 private val RSSHUB_PRESETS = listOf(
@@ -48,7 +54,7 @@ fun SettingsScreen(
     var instanceInput by remember(prefs.rsshubInstance) { mutableStateOf(prefs.rsshubInstance ?: "") }
     var testResult by remember { mutableStateOf<String?>(null) }
     var testing by remember { mutableStateOf(false) }
-    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     fun applyInstance(value: String?) {
         val v = value?.trim()?.trimEnd('/')?.takeIf { it.isNotEmpty() }
@@ -107,19 +113,29 @@ fun SettingsScreen(
                     val target = instanceInput.trim().trimEnd('/').ifEmpty { prefs.effectiveRsshubInstance }
                     testing = true
                     testResult = null
-                    // 后台线程测试实例连通性
-                    Thread {
-                        val ok = runCatching {
-                            val conn = (java.net.URL("$target/36kr/hot-list").openConnection() as java.net.HttpURLConnection).apply {
-                                connectTimeout = 6000
-                                readTimeout = 6000
-                                instanceFollowRedirects = true
-                            }
-                            conn.responseCode in 200..399
-                        }.getOrDefault(false)
+                    scope.launch {
+                        val start = System.currentTimeMillis()
+                        // 后台线程测试实例连通性（20s 超时，Vercel 冷启动可能较慢）
+                        val result = withContext(Dispatchers.IO) {
+                            runCatching {
+                                val conn = (URL("$target/36kr/hot-list").openConnection() as HttpURLConnection).apply {
+                                    connectTimeout = 20000
+                                    readTimeout = 20000
+                                    instanceFollowRedirects = true
+                                }
+                                val code = conn.responseCode
+                                conn.disconnect()
+                                code
+                            }.getOrNull()
+                        }
+                        val elapsed = System.currentTimeMillis() - start
                         testing = false
-                        testResult = if (ok) "✅ 实例可用（HTTP ${if (ok) "200" else "?"}）" else "❌ 实例不可用，请检查地址或网络"
-                    }.start()
+                        testResult = if (result != null && result in 200..399) {
+                            "✅ 实例可用（HTTP $result，${elapsed}ms）"
+                        } else {
+                            "❌ 实例不可用（${result ?: "连接超时"}，${elapsed}ms）请检查地址或网络"
+                        }
+                    }
                 },
                 enabled = !testing
             ) { Text(if (testing) "测试中..." else "测试实例") }
