@@ -154,6 +154,12 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
         _uiState.update { it.copy(filterMode = mode, selectedFeedId = null) }
     }
 
+    fun markAllRead() {
+        viewModelScope.launch {
+            repo.markAllReadAll()
+        }
+    }
+
     fun clearError() {
         _uiState.update { it.copy(error = null, subscribeError = null) }
     }

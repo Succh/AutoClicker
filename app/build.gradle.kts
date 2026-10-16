@@ -91,7 +91,6 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     // XML 解析 (RSS)
-    implementation("com.fasterxml.woodstox:woodstox-core:6.7.0")
 
     // jsoup (HTML 内容提取)
     implementation("org.jsoup:jsoup:1.18.3")

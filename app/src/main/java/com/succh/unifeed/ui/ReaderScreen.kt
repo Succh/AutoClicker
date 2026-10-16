@@ -50,6 +50,8 @@ fun ReaderScreen(
 ) {
     val colors = MaterialTheme.colorScheme
     var showAaPanel by remember { mutableStateOf(false) }
+    // 收藏状态本地化：点击即时刷新图标，不等数据库回流
+    var starred by remember(entry.id, entry.isStarred) { mutableStateOf(entry.isStarred) }
 
     val articleHtml = remember(
         entry.content, entry.summary,
@@ -86,11 +88,14 @@ fun ReaderScreen(
                     IconButton(onClick = { showAaPanel = true }) {
                         Icon(Icons.Filled.FormatSize, contentDescription = "阅读设置", tint = colors.onSurfaceVariant)
                     }
-                    IconButton(onClick = { onToggleStar(entry, !entry.isStarred) }) {
+                    IconButton(onClick = {
+                        starred = !starred
+                        onToggleStar(entry, starred)
+                    }) {
                         Icon(
-                            if (entry.isStarred) Icons.Filled.Star else Icons.Filled.StarBorder,
+                            if (starred) Icons.Filled.Star else Icons.Filled.StarBorder,
                             contentDescription = "收藏",
-                            tint = if (entry.isStarred) Color(0xFFFFB300) else colors.onSurfaceVariant
+                            tint = if (starred) Color(0xFFFFB300) else colors.onSurfaceVariant
                         )
                     }
                     IconButton(onClick = { onShare(entry) }) {
@@ -159,7 +164,11 @@ fun ReaderScreen(
                 }
             },
             update = { webView ->
-                webView.loadDataWithBaseURL(baseUrl, articleHtml, "text/html", "UTF-8", null)
+                // 只在文章内容变化时重载，避免重组时丢阅读进度
+                if (webView.tag != articleHtml) {
+                    webView.tag = articleHtml
+                    webView.loadDataWithBaseURL(baseUrl, articleHtml, "text/html", "UTF-8", null)
+                }
             }
         )
     }
