@@ -303,6 +303,11 @@ class FeedRepository(
         feedDao.updateUnreadCount(feedId)
     }
 
+    suspend fun markAllReadAll() {
+        entryDao.markAllReadGlobal()
+        feedDao.observeAll().first().forEach { feedDao.updateUnreadCount(it.id) }
+    }
+
     private suspend fun saveEntries(feedId: Long, parsed: ParsedFeed) {
         parsed.entries.forEach { pe ->
             val existing = entryDao.getByGuid(feedId, pe.guid)

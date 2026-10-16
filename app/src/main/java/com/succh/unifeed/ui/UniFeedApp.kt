@@ -97,6 +97,7 @@ fun UniFeedApp(
             onStarToggle = viewModel::setStarred,
             onFilter = viewModel::setFilter,
             onRefresh = viewModel::refreshAll,
+            onMarkAllRead = viewModel::markAllRead,
             onRsshubInstanceChange = { updateRsshubInstance(it) }
         )
     }
@@ -115,6 +116,7 @@ private fun MainTabScreen(
     onStarToggle: (Entry, Boolean) -> Unit,
     onFilter: (FilterMode) -> Unit,
     onRefresh: () -> Unit,
+    onMarkAllRead: () -> Unit,
     onRsshubInstanceChange: (String?) -> Unit = {}
 ) {
     Scaffold(
@@ -161,14 +163,22 @@ private fun MainTabScreen(
                 onEntryClick = onEntryClick,
                 onStarToggle = onStarToggle,
                 showSummary = prefs.listShowSummary,
-                modifier = Modifier.padding(padding)
+                modifier = Modifier.padding(padding),
+                onRefresh = onRefresh,
+                isRefreshing = state.isLoading,
+                onFilter = onFilter,
+                filterMode = state.filterMode,
+                onMarkAllRead = onMarkAllRead
             )
             2 -> EntryListScreen(
                 entries = state.entries.filter { it.isStarred },
                 onEntryClick = onEntryClick,
                 onStarToggle = onStarToggle,
                 showSummary = prefs.listShowSummary,
-                modifier = Modifier.padding(padding)
+                modifier = Modifier.padding(padding),
+                onRefresh = onRefresh,
+                isRefreshing = state.isLoading,
+                showFilter = false
             )
             3 -> SettingsScreen(
                 prefs = prefs,

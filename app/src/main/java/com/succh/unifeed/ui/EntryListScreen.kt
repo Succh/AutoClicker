@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,33 +22,76 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EntryListScreen(
     entries: List<Entry>,
     onEntryClick: (Entry) -> Unit,
     onStarToggle: (Entry, Boolean) -> Unit,
     showSummary: Boolean = false,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onRefresh: () -> Unit = {},
+    isRefreshing: Boolean = false,
+    onFilter: (FilterMode) -> Unit = {},
+    filterMode: FilterMode = FilterMode.ALL,
+    onMarkAllRead: () -> Unit = {},
+    showFilter: Boolean = true
 ) {
-    if (entries.isEmpty()) {
-        Box(
-            modifier = modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = onRefresh,
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize()
         ) {
-            Text("暂无文章", style = MaterialTheme.typography.bodyLarge)
-        }
-    } else {
-        LazyColumn(
-            modifier = modifier.fillMaxSize(),
-            contentPadding = PaddingValues(vertical = 8.dp)
-        ) {
-            items(entries, key = { it.id }) { entry ->
-                EntryItem(
-                    entry = entry,
-                    showSummary = showSummary,
-                    onClick = { onEntryClick(entry) },
-                    onStar = { onStarToggle(entry, !entry.isStarred) }
-                )
+            if (showFilter) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    FilterChip(
+                        selected = filterMode == FilterMode.ALL,
+                        onClick = { onFilter(FilterMode.ALL) },
+                        label = { Text("全部") }
+                    )
+                    FilterChip(
+                        selected = filterMode == FilterMode.UNREAD,
+                        onClick = { onFilter(FilterMode.UNREAD) },
+                        label = { Text("未读") }
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    if (entries.any { !it.isRead }) {
+                        TextButton(onClick = onMarkAllRead) {
+                            Text("全部标为已读")
+                        }
+                    }
+                }
+            }
+            if (entries.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("暂无文章", style = MaterialTheme.typography.bodyLarge)
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(vertical = 8.dp)
+                ) {
+                    items(entries, key = { it.id }) { entry ->
+                        EntryItem(
+                            entry = entry,
+                            showSummary = showSummary,
+                            onClick = { onEntryClick(entry) },
+                            onStar = { onStarToggle(entry, !entry.isStarred) }
+                        )
+                    }
+                }
             }
         }
     }

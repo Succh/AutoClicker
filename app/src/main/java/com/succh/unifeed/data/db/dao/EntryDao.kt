@@ -39,6 +39,9 @@ interface EntryDao {
     @Query("UPDATE entries SET isRead = 1 WHERE feedId = :feedId AND isRead = 0")
     suspend fun markAllRead(feedId: Long)
 
+    @Query("UPDATE entries SET isRead = 1 WHERE isRead = 0")
+    suspend fun markAllReadGlobal()
+
     @Query("UPDATE entries SET isStarred = :starred WHERE id = :id")
     suspend fun setStarred(id: Long, starred: Boolean)
 
