@@ -1,6 +1,9 @@
 package com.succh.unifeed.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,9 +15,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -26,7 +32,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -54,6 +62,42 @@ fun SettingsScreen(
     var testResult by remember { mutableStateOf<String?>(null) }
     var testing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val vm: UniFeedViewModel = viewModel()
+    val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/xml")
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val opml = withContext(Dispatchers.IO) { vm.exportOpml() }
+                val ok = withContext(Dispatchers.IO) {
+                    runCatching {
+                        context.contentResolver.openOutputStream(uri)?.use { out ->
+                            out.write(opml.toByteArray(Charsets.UTF_8))
+                        } ?: throw IllegalStateException("无法打开输出流")
+                    }.isSuccess
+                }
+                snackbarHostState.showSnackbar(if (ok) "OPML 导出完成" else "OPML 导出失败")
+            }
+        }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val (imported, skipped) = withContext(Dispatchers.IO) {
+                    val input = context.contentResolver.openInputStream(uri)
+                        ?: return@withContext (0 to 0)
+                    input.use { vm.importOpml(it) }
+                }
+                snackbarHostState.showSnackbar("导入 $imported 个，跳过 $skipped 个")
+            }
+        }
+    }
 
     fun applyInstance(value: String?) {
         val v = value?.trim()?.trimEnd('/')?.takeIf { it.isNotEmpty() }
@@ -63,13 +107,14 @@ fun SettingsScreen(
         testResult = null
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
         Text("个人设置", style = MaterialTheme.typography.titleLarge)
 
         Text("列表设置", style = MaterialTheme.typography.titleMedium)
@@ -163,11 +208,33 @@ fun SettingsScreen(
 
         HorizontalDivider()
 
+        Text("OPML", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "导入导出订阅列表，方便备份与迁移。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = { exportLauncher.launch("unifeed.opml") }) {
+                Text("导出 OPML")
+            }
+            Button(onClick = { importLauncher.launch("text/xml") }) {
+                Text("导入 OPML")
+            }
+        }
+
+        HorizontalDivider()
+
         Text("关于", style = MaterialTheme.typography.titleMedium)
         Text(
             "UniFeed v1.1 • 开源 RSS 阅读器",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
         )
     }
 }

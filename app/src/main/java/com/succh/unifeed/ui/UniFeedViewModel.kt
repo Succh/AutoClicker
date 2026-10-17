@@ -6,9 +6,13 @@ import androidx.lifecycle.viewModelScope
 import com.succh.unifeed.UniFeedApp
 import com.succh.unifeed.data.db.entity.Entry
 import com.succh.unifeed.data.db.entity.Feed
+import com.succh.unifeed.data.opml.OpmlManager
 import com.succh.unifeed.data.rss.DiscoveredFeed
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.InputStream
 
 data class UniFeedUiState(
     val feeds: List<Feed> = emptyList(),
@@ -162,5 +166,18 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
 
     fun clearError() {
         _uiState.update { it.copy(error = null, subscribeError = null) }
+    }
+
+    /** 导出 OPML：从仓库取 feeds + folders 生成 XML 字符串 */
+    suspend fun exportOpml(): String = withContext(Dispatchers.IO) {
+        val feeds = repo.observeFeeds().first()
+        val folders = repo.observeFolders().first()
+        OpmlManager.export(feeds, folders)
+    }
+
+    /** 导入 OPML：解析输入流并批量导入，返回 Pair(成功数, 跳过数) */
+    suspend fun importOpml(inputStream: InputStream): Pair<Int, Int> = withContext(Dispatchers.IO) {
+        val list = OpmlManager.parse(inputStream)
+        repo.importFeeds(list)
     }
 }

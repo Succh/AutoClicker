@@ -12,6 +12,9 @@ interface FolderDao {
     @Query("SELECT * FROM folders WHERE id = :id")
     suspend fun getById(id: Long): Folder?
 
+    @Query("SELECT * FROM folders WHERE name = :name LIMIT 1")
+    suspend fun getByName(name: String): Folder?
+
     @Insert
     suspend fun insert(folder: Folder): Long
 

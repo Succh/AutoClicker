@@ -3,7 +3,9 @@ package com.succh.unifeed.data.repository
 import com.succh.unifeed.data.db.AppDatabase
 import com.succh.unifeed.data.db.entity.Entry
 import com.succh.unifeed.data.db.entity.Feed
+import com.succh.unifeed.data.db.entity.Folder
 import com.succh.unifeed.data.model.ParsedFeed
+import com.succh.unifeed.data.opml.OpmlFeed
 import com.succh.unifeed.data.rss.ContentExtractor
 import com.succh.unifeed.data.rss.DiscoveredFeed
 import com.succh.unifeed.data.rss.FeedDiscovery
@@ -306,6 +308,48 @@ class FeedRepository(
     suspend fun markAllReadAll() {
         entryDao.markAllReadGlobal()
         feedDao.observeAll().first().forEach { feedDao.updateUnreadCount(it.id) }
+    }
+
+    fun observeFolders(): Flow<List<Folder>> = folderDao.observeAll()
+
+    /**
+     * OPML 批量导入：按 URL 去重，已存在的跳过；
+     * 有文件夹名的先建文件夹再关联，无文件夹名的平铺导入。
+     * 返回 Pair(成功导入数, 跳过数)。
+     */
+    suspend fun importFeeds(list: List<OpmlFeed>): Pair<Int, Int> {
+        var imported = 0
+        var skipped = 0
+        val folderCache = mutableMapOf<String, Long>()
+        for (opmlFeed in list) {
+            val url = opmlFeed.xmlUrl.trim()
+            if (url.isEmpty()) {
+                skipped++
+                continue
+            }
+            if (feedDao.getByUrl(url) != null) {
+                skipped++
+                continue
+            }
+            val folderId = opmlFeed.folderName?.takeIf { it.isNotEmpty() }?.let { folderName ->
+                folderCache.getOrPut(folderName) {
+                    folderDao.getByName(folderName)?.id
+                        ?: folderDao.insert(Folder(name = folderName))
+                }
+            }
+            feedDao.insert(
+                Feed(
+                    title = opmlFeed.title.ifEmpty { url },
+                    url = url,
+                    siteUrl = opmlFeed.htmlUrl.takeIf { it.isNotEmpty() },
+                    description = "",
+                    faviconUrl = "",
+                    folderId = folderId
+                )
+            )
+            imported++
+        }
+        return imported to skipped
     }
 
     private suspend fun saveEntries(feedId: Long, parsed: ParsedFeed) {
