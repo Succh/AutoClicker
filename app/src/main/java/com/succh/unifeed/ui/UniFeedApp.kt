@@ -103,7 +103,10 @@ fun UniFeedApp(
             onCreateFolder = viewModel::createFolder,
             onRenameFolder = viewModel::renameFolder,
             onDeleteFolder = viewModel::deleteFolder,
-            onMoveFeedToFolder = viewModel::moveFeedToFolder
+            onMoveFeedToFolder = viewModel::moveFeedToFolder,
+            onRenameFeed = viewModel::renameFeed,
+            searchQuery = state.searchQuery,
+            onSearchQueryChange = viewModel::setSearchQuery
         )
     }
 }
@@ -127,7 +130,10 @@ private fun MainTabScreen(
     onCreateFolder: (String) -> Unit = {},
     onRenameFolder: (Long, String) -> Unit = { _, _ -> },
     onDeleteFolder: (Long) -> Unit = {},
-    onMoveFeedToFolder: (Long, Long?) -> Unit = { _, _ -> }
+    onMoveFeedToFolder: (Long, Long?) -> Unit = { _, _ -> },
+    onRenameFeed: (Long, String) -> Unit = { _, _ -> },
+    searchQuery: String = "",
+    onSearchQueryChange: (String) -> Unit = {}
 ) {
     Scaffold(
         bottomBar = {
@@ -171,6 +177,9 @@ private fun MainTabScreen(
                 onRenameFolder = onRenameFolder,
                 onDeleteFolder = onDeleteFolder,
                 onMoveFeedToFolder = onMoveFeedToFolder,
+                onRenameFeed = onRenameFeed,
+                searchQuery = searchQuery,
+                onSearchQueryChange = onSearchQueryChange,
                 modifier = Modifier.padding(padding)
             )
             1 -> EntryListScreen(
@@ -183,7 +192,9 @@ private fun MainTabScreen(
                 isRefreshing = state.isLoading,
                 onFilter = onFilter,
                 filterMode = state.filterMode,
-                onMarkAllRead = onMarkAllRead
+                onMarkAllRead = onMarkAllRead,
+                searchQuery = searchQuery,
+                onSearchQueryChange = onSearchQueryChange
             )
             2 -> EntryListScreen(
                 entries = state.entries.filter { it.isStarred },

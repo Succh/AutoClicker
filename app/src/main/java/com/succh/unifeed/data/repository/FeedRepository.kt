@@ -337,6 +337,14 @@ class FeedRepository(
         feedDao.updateFolderId(feedId, folderId)
     }
 
+    suspend fun renameFeed(feedId: Long, newTitle: String): Boolean {
+        val trimmed = newTitle.trim()
+        if (trimmed.isEmpty()) return false
+        val feed = feedDao.getById(feedId) ?: return false
+        feedDao.update(feed.copy(title = trimmed))
+        return true
+    }
+
     /**
      * OPML 批量导入：按 URL 去重，已存在的跳过；
      * 有文件夹名的先建文件夹再关联，无文件夹名的平铺导入。

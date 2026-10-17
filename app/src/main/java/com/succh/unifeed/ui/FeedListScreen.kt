@@ -61,10 +61,14 @@ fun FeedListScreen(
     onCreateFolder: (String) -> Unit = {},
     onRenameFolder: (Long, String) -> Unit = { _, _ -> },
     onDeleteFolder: (Long) -> Unit = {},
-    onMoveFeedToFolder: (Long, Long?) -> Unit = { _, _ -> }
+    onMoveFeedToFolder: (Long, Long?) -> Unit = { _, _ -> },
+    onRenameFeed: (Long, String) -> Unit = { _, _ -> },
+    searchQuery: String = "",
+    onSearchQueryChange: (String) -> Unit = {}
 ) {
     var showFolderManager by remember { mutableStateOf(false) }
     var moveTarget by remember { mutableStateOf<Feed?>(null) }
+    var renamingFeed by remember { mutableStateOf<Feed?>(null) }
     val folderNameById = remember(folders) { folders.associate { it.id to it.name } }
 
     Scaffold(
@@ -93,7 +97,17 @@ fun FeedListScreen(
             )
         }
     ) { padding ->
-        if (feeds.isEmpty()) {
+        Column(modifier = Modifier.padding(padding)) {
+            TextField(
+                value = searchQuery,
+                onValueChange = onSearchQueryChange,
+                placeholder = { Text("搜索订阅源...") },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+            if (feeds.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -112,7 +126,11 @@ fun FeedListScreen(
                 }
             }
         } else {
-            val grouped = feeds.groupBy { it.folderId }
+            val filteredFeeds = if (searchQuery.isBlank()) feeds else feeds.filter {
+                it.title.contains(searchQuery, ignoreCase = true) ||
+                it.url.contains(searchQuery, ignoreCase = true)
+            }
+            val grouped = filteredFeeds.groupBy { it.folderId }
             val sortedKeys = grouped.keys.sortedBy { it ?: Long.MAX_VALUE }
 
             LazyColumn(
@@ -164,7 +182,8 @@ fun FeedListScreen(
                             selected = feed.id == selectedFeedId,
                             onClick = { onSelectFeed(feed.id) },
                             onDelete = { onDeleteFeed(feed) },
-                            onMove = { moveTarget = feed }
+                            onMove = { moveTarget = feed },
+                            onRename = { renamingFeed = feed }
                         )
                     }
                 }
@@ -180,6 +199,19 @@ fun FeedListScreen(
             onRenameFolder = onRenameFolder,
             onDeleteFolder = onDeleteFolder,
             onDismiss = { showFolderManager = false }
+        )
+    }
+    }
+
+    renamingFeed?.let { feed ->
+        FolderNameDialog(
+            title = "重命名订阅源",
+            initialName = feed.title,
+            onConfirm = { name ->
+                onRenameFeed(feed.id, name)
+                renamingFeed = null
+            },
+            onDismiss = { renamingFeed = null }
         )
     }
 
@@ -202,7 +234,8 @@ private fun FeedItem(
     selected: Boolean,
     onClick: () -> Unit,
     onDelete: () -> Unit,
-    onMove: () -> Unit
+    onMove: () -> Unit,
+    onRename: () -> Unit = {}
 ) {
     val colors = MaterialTheme.colorScheme
     Card(
@@ -245,6 +278,13 @@ private fun FeedItem(
                 Icon(
                     Icons.Default.Folder,
                     contentDescription = "移动到文件夹",
+                    tint = colors.primary
+                )
+            }
+            IconButton(onClick = onRename) {
+                Icon(
+                    Icons.Default.Edit,
+                    contentDescription = "重命名",
                     tint = colors.primary
                 )
             }
