@@ -4,9 +4,18 @@ import android.app.Application
 import androidx.room.Room
 import com.succh.unifeed.data.db.AppDatabase
 import com.succh.unifeed.data.repository.FeedRepository
+import com.succh.unifeed.data.work.RefreshWorker
 import com.succh.unifeed.ui.ReaderPrefs
 
 class UniFeedApp : Application() {
+
+    override fun onCreate() {
+        super.onCreate()
+        // 启动时恢复后台自动刷新调度
+        if (appPrefs.autoRefreshEnabled) {
+            RefreshWorker.schedule(this, appPrefs.autoRefreshIntervalHours)
+        }
+    }
 
     val database: AppDatabase by lazy {
         Room.databaseBuilder(this, AppDatabase::class.java, "unifeed.db")
