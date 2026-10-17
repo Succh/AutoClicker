@@ -28,7 +28,8 @@ data class UniFeedUiState(
     val discoveryError: String? = null,
     val isSubscribing: Boolean = false,
     val subscribeError: String? = null,
-    val folders: List<Folder> = emptyList()
+    val folders: List<Folder> = emptyList(),
+    val searchQuery: String = ""
 )
 
 enum class FilterMode { ALL, UNREAD, STARRED }
@@ -99,6 +100,14 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
 
     fun moveFeedToFolder(feedId: Long, folderId: Long?) {
         viewModelScope.launch { repo.moveFeedToFolder(feedId, folderId) }
+    }
+
+    fun setSearchQuery(query: String) {
+        _uiState.update { it.copy(searchQuery = query) }
+    }
+
+    fun renameFeed(feedId: Long, newTitle: String) {
+        viewModelScope.launch { repo.renameFeed(feedId, newTitle) }
     }
 
     fun clearDiscovery() {

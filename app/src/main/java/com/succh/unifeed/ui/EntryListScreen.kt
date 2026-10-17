@@ -35,7 +35,9 @@ fun EntryListScreen(
     onFilter: (FilterMode) -> Unit = {},
     filterMode: FilterMode = FilterMode.ALL,
     onMarkAllRead: () -> Unit = {},
-    showFilter: Boolean = true
+    showFilter: Boolean = true,
+    searchQuery: String = "",
+    onSearchQueryChange: (String) -> Unit = {}
 ) {
     PullToRefreshBox(
         isRefreshing = isRefreshing,
@@ -45,6 +47,15 @@ fun EntryListScreen(
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
+            TextField(
+                value = searchQuery,
+                onValueChange = onSearchQueryChange,
+                placeholder = { Text("搜索文章...") },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            )
             if (showFilter) {
                 Row(
                     modifier = Modifier
@@ -83,7 +94,11 @@ fun EntryListScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(vertical = 8.dp)
                 ) {
-                    items(entries, key = { it.id }) { entry ->
+                    val filteredEntries = if (searchQuery.isBlank()) entries else entries.filter {
+                        it.title.contains(searchQuery, ignoreCase = true) ||
+                        (it.summary?.contains(searchQuery, ignoreCase = true) == true)
+                    }
+                    items(filteredEntries, key = { it.id }) { entry ->
                         EntryItem(
                             entry = entry,
                             showSummary = showSummary,
