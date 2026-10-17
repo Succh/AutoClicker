@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.succh.unifeed.UniFeedApp
 import com.succh.unifeed.data.db.entity.Entry
 import com.succh.unifeed.data.db.entity.Feed
+import com.succh.unifeed.data.db.entity.Folder
 import com.succh.unifeed.data.opml.OpmlManager
 import com.succh.unifeed.data.rss.DiscoveredFeed
 import kotlinx.coroutines.Dispatchers
@@ -26,7 +27,8 @@ data class UniFeedUiState(
     val discoveredFeeds: List<DiscoveredFeed> = emptyList(),
     val discoveryError: String? = null,
     val isSubscribing: Boolean = false,
-    val subscribeError: String? = null
+    val subscribeError: String? = null,
+    val folders: List<Folder> = emptyList()
 )
 
 enum class FilterMode { ALL, UNREAD, STARRED }
@@ -47,6 +49,11 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             repo.observeUnreadCount().collect { count ->
                 _uiState.update { it.copy(unreadCount = count) }
+            }
+        }
+        viewModelScope.launch {
+            repo.observeFolders().collect { folders ->
+                _uiState.update { it.copy(folders = folders) }
             }
         }
         viewModelScope.launch {
@@ -76,6 +83,22 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
                 _uiState.update { it.copy(isDiscovering = false, discoveryError = e.message ?: "探测失败") }
             }
         }
+    }
+
+    fun createFolder(name: String) {
+        viewModelScope.launch { repo.createFolder(name) }
+    }
+
+    fun renameFolder(id: Long, name: String) {
+        viewModelScope.launch { repo.renameFolder(id, name) }
+    }
+
+    fun deleteFolder(id: Long) {
+        viewModelScope.launch { repo.deleteFolder(id) }
+    }
+
+    fun moveFeedToFolder(feedId: Long, folderId: Long?) {
+        viewModelScope.launch { repo.moveFeedToFolder(feedId, folderId) }
     }
 
     fun clearDiscovery() {

@@ -32,4 +32,10 @@ interface FeedDao {
 
     @Query("UPDATE feeds SET unreadCount = (SELECT COUNT(*) FROM entries WHERE feedId = :feedId AND isRead = 0) WHERE id = :feedId")
     suspend fun updateUnreadCount(feedId: Long)
+
+    @Query("UPDATE feeds SET folderId = :folderId WHERE id = :feedId")
+    suspend fun updateFolderId(feedId: Long, folderId: Long?)
+
+    @Query("UPDATE feeds SET folderId = NULL WHERE folderId = :folderId")
+    suspend fun clearFolderId(folderId: Long)
 }

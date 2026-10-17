@@ -98,7 +98,12 @@ fun UniFeedApp(
             onFilter = viewModel::setFilter,
             onRefresh = viewModel::refreshAll,
             onMarkAllRead = viewModel::markAllRead,
-            onRsshubInstanceChange = { updateRsshubInstance(it) }
+            onRsshubInstanceChange = { updateRsshubInstance(it) },
+            folders = state.folders,
+            onCreateFolder = viewModel::createFolder,
+            onRenameFolder = viewModel::renameFolder,
+            onDeleteFolder = viewModel::deleteFolder,
+            onMoveFeedToFolder = viewModel::moveFeedToFolder
         )
     }
 }
@@ -117,7 +122,12 @@ private fun MainTabScreen(
     onFilter: (FilterMode) -> Unit,
     onRefresh: () -> Unit,
     onMarkAllRead: () -> Unit,
-    onRsshubInstanceChange: (String?) -> Unit = {}
+    onRsshubInstanceChange: (String?) -> Unit = {},
+    folders: List<Folder> = emptyList(),
+    onCreateFolder: (String) -> Unit = {},
+    onRenameFolder: (Long, String) -> Unit = { _, _ -> },
+    onDeleteFolder: (Long) -> Unit = {},
+    onMoveFeedToFolder: (Long, Long?) -> Unit = { _, _ -> }
 ) {
     Scaffold(
         bottomBar = {
@@ -156,6 +166,11 @@ private fun MainTabScreen(
                 onSelectFeed = onSelectFeed,
                 onAddFeed = onAddFeed,
                 onDeleteFeed = onDeleteFeed,
+                folders = folders,
+                onCreateFolder = onCreateFolder,
+                onRenameFolder = onRenameFolder,
+                onDeleteFolder = onDeleteFolder,
+                onMoveFeedToFolder = onMoveFeedToFolder,
                 modifier = Modifier.padding(padding)
             )
             1 -> EntryListScreen(

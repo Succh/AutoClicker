@@ -312,6 +312,31 @@ class FeedRepository(
 
     fun observeFolders(): Flow<List<Folder>> = folderDao.observeAll()
 
+    suspend fun createFolder(name: String): Long {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return -1L
+        val existing = folderDao.getByName(trimmed)
+        if (existing != null) return existing.id
+        return folderDao.insert(Folder(name = trimmed, createdAt = System.currentTimeMillis()))
+    }
+
+    suspend fun renameFolder(id: Long, name: String): Boolean {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return false
+        val folder = folderDao.getById(id) ?: return false
+        folderDao.update(folder.copy(name = trimmed))
+        return true
+    }
+
+    suspend fun deleteFolder(id: Long) {
+        feedDao.clearFolderId(id)
+        folderDao.deleteById(id)
+    }
+
+    suspend fun moveFeedToFolder(feedId: Long, folderId: Long?) {
+        feedDao.updateFolderId(feedId, folderId)
+    }
+
     /**
      * OPML 批量导入：按 URL 去重，已存在的跳过；
      * 有文件夹名的先建文件夹再关联，无文件夹名的平铺导入。

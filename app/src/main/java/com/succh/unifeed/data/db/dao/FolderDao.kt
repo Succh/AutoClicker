@@ -23,4 +23,7 @@ interface FolderDao {
 
     @Query("DELETE FROM folders WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    @Update
+    suspend fun update(folder: Folder)
 }
