@@ -84,7 +84,7 @@ object OpmlManager {
                             val htmlUrl = parser.getAttributeValue(null, "htmlUrl")
                                 ?.takeIf { it.isNotEmpty() } ?: ""
                             val folderName = folderStack.lastOrNull()
-                                ?.second?.takeIf { it.isNotEmpty() }
+                                ?.first?.takeIf { it.isNotEmpty() }
                             result.add(
                                 OpmlFeed(
                                     title = title.ifEmpty { xmlUrl },
@@ -99,7 +99,7 @@ object OpmlManager {
                 XmlPullParser.END_TAG -> {
                     if (parser.name.equals("outline", ignoreCase = true) &&
                         folderStack.isNotEmpty() &&
-                        folderStack.last().first == parser.depth
+                        folderStack.last().second == parser.depth
                     ) {
                         folderStack.removeLast()
                     }
