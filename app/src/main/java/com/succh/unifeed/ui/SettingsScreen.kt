@@ -16,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -35,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.succh.unifeed.data.work.RefreshWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -220,6 +222,48 @@ fun SettingsScreen(
             }
             Button(onClick = { importLauncher.launch("text/xml") }) {
                 Text("导入 OPML")
+            }
+        }
+
+        HorizontalDivider()
+
+        Text("后台自动刷新", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "定期在后台抓取新文章（需要联网）。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("启用后台刷新", style = MaterialTheme.typography.bodyLarge)
+            Switch(
+                checked = prefs.autoRefreshEnabled,
+                onCheckedChange = {
+                    prefs.autoRefreshEnabled = it
+                    if (it) {
+                        RefreshWorker.schedule(context, prefs.autoRefreshIntervalHours)
+                    } else {
+                        RefreshWorker.cancel(context)
+                    }
+                }
+            )
+        }
+        if (prefs.autoRefreshEnabled) {
+            Text("刷新间隔", style = MaterialTheme.typography.labelMedium)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(2L, 6L, 12L, 24L).forEach { hours ->
+                    FilterChip(
+                        selected = prefs.autoRefreshIntervalHours == hours,
+                        onClick = {
+                            prefs.autoRefreshIntervalHours = hours
+                            RefreshWorker.schedule(context, hours)
+                        },
+                        label = { Text("${hours}小时") }
+                    )
+                }
             }
         }
 

@@ -91,6 +91,24 @@ class ReaderPrefs(context: Context) {
     val effectiveRsshubInstance: String
         get() = rsshubInstance ?: DEFAULT_RSSHUB_INSTANCE
 
+    /** 后台自动刷新开关 */
+    private val _autoRefreshEnabled = mutableStateOf(sp.getBoolean(KEY_AUTO_REFRESH_ENABLED, false))
+    var autoRefreshEnabled: Boolean
+        get() = _autoRefreshEnabled.value
+        set(value) {
+            _autoRefreshEnabled.value = value
+            sp.edit().putBoolean(KEY_AUTO_REFRESH_ENABLED, value).apply()
+        }
+
+    /** 后台自动刷新间隔（小时） */
+    private val _autoRefreshIntervalHours = mutableStateOf(sp.getLong(KEY_AUTO_REFRESH_INTERVAL_HOURS, 6L))
+    var autoRefreshIntervalHours: Long
+        get() = _autoRefreshIntervalHours.value
+        set(value) {
+            _autoRefreshIntervalHours.value = value
+            sp.edit().putLong(KEY_AUTO_REFRESH_INTERVAL_HOURS, value).apply()
+        }
+
     private fun loadTheme(): ReaderTheme {
         val name = sp.getString(KEY_THEME, ReaderTheme.LIGHT.name)
         return ReaderTheme.entries.firstOrNull { it.name == name } ?: ReaderTheme.LIGHT
@@ -106,6 +124,8 @@ class ReaderPrefs(context: Context) {
         const val KEY_LIST_SUMMARY = "list_summary"
         const val KEY_AUTO_READ = "auto_read"
         const val KEY_RSSHUB_INSTANCE = "rsshub_instance"
+        const val KEY_AUTO_REFRESH_ENABLED = "auto_refresh_enabled"
+        const val KEY_AUTO_REFRESH_INTERVAL_HOURS = "auto_refresh_interval_hours"
 
         /** 默认自建 RSSHub 实例 */
         const val DEFAULT_RSSHUB_INSTANCE = "https://succh.zone.id"
