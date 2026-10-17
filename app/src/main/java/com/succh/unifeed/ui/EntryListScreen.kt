@@ -10,6 +10,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxState
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material.icons.filled.MarkEmailRead
+import androidx.compose.material.icons.filled.MarkEmailUnread
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarOutline
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,7 +47,9 @@ fun EntryListScreen(
     onMarkAllRead: () -> Unit = {},
     showFilter: Boolean = true,
     searchQuery: String = "",
-    onSearchQueryChange: (String) -> Unit = {}
+    onSearchQueryChange: (String) -> Unit = {},
+    onMarkRead: (Entry) -> Unit = {},
+    onMarkUnread: (Entry) -> Unit = {}
 ) {
     PullToRefreshBox(
         isRefreshing = isRefreshing,
@@ -99,16 +111,85 @@ fun EntryListScreen(
                         (it.summary?.contains(searchQuery, ignoreCase = true) == true)
                     }
                     items(filteredEntries, key = { it.id }) { entry ->
-                        EntryItem(
+                        SwipeableEntryItem(
                             entry = entry,
                             showSummary = showSummary,
                             onClick = { onEntryClick(entry) },
-                            onStar = { onStarToggle(entry, !entry.isStarred) }
+                            onStar = { onStarToggle(entry, !entry.isStarred) },
+                            onMarkRead = { onMarkRead(entry) },
+                            onMarkUnread = { onMarkUnread(entry) }
                         )
                     }
                 }
             }
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeableEntryItem(
+    entry: Entry,
+    showSummary: Boolean,
+    onClick: () -> Unit,
+    onStar: () -> Unit,
+    onMarkRead: () -> Unit,
+    onMarkUnread: () -> Unit
+) {
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            when (value) {
+                SwipeToDismissBoxValue.StartToEnd -> {
+                    // 右滑：切换已读/未读
+                    if (entry.isRead) onMarkUnread() else onMarkRead()
+                    false // 不真正 dismiss，只触发动作
+                }
+                SwipeToDismissBoxValue.EndToStart -> {
+                    // 左滑：收藏/取消收藏
+                    onStar()
+                    false
+                }
+                else -> false
+            }
+        }
+    )
+
+    SwipeToDismissBox(
+        state = dismissState,
+        backgroundContent = {
+            val direction = dismissState.dismissDirection
+            val color = when (direction) {
+                SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.colorScheme.primaryContainer
+                SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.tertiaryContainer
+                else -> MaterialTheme.colorScheme.surface
+            }
+            val icon = when (direction) {
+                SwipeToDismissBoxValue.StartToEnd -> if (entry.isRead) Icons.Default.MarkEmailUnread else Icons.Default.MarkEmailRead
+                SwipeToDismissBoxValue.EndToStart -> if (entry.isStarred) Icons.Default.StarOutline else Icons.Default.Star
+                else -> null
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(color)
+                    .padding(horizontal = 20.dp),
+                contentAlignment = when (direction) {
+                    SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
+                    else -> Alignment.CenterEnd
+                }
+            ) {
+                icon?.let {
+                    Icon(it, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                }
+            }
+        }
+    ) {
+        EntryItem(
+            entry = entry,
+            showSummary = showSummary,
+            onClick = onClick,
+            onStar = onStar
+        )
     }
 }
 

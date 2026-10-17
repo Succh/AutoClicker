@@ -106,7 +106,9 @@ fun UniFeedApp(
             onMoveFeedToFolder = viewModel::moveFeedToFolder,
             onRenameFeed = viewModel::renameFeed,
             searchQuery = state.searchQuery,
-            onSearchQueryChange = viewModel::setSearchQuery
+            onSearchQueryChange = viewModel::setSearchQuery,
+            onMarkRead = viewModel::markRead,
+            onMarkUnread = viewModel::markUnread
         )
     }
 }
@@ -133,7 +135,9 @@ private fun MainTabScreen(
     onMoveFeedToFolder: (Long, Long?) -> Unit = { _, _ -> },
     onRenameFeed: (Long, String) -> Unit = { _, _ -> },
     searchQuery: String = "",
-    onSearchQueryChange: (String) -> Unit = {}
+    onSearchQueryChange: (String) -> Unit = {},
+    onMarkRead: (Entry) -> Unit = {},
+    onMarkUnread: (Entry) -> Unit = {}
 ) {
     Scaffold(
         bottomBar = {
@@ -194,7 +198,9 @@ private fun MainTabScreen(
                 filterMode = state.filterMode,
                 onMarkAllRead = onMarkAllRead,
                 searchQuery = searchQuery,
-                onSearchQueryChange = onSearchQueryChange
+                onSearchQueryChange = onSearchQueryChange,
+                onMarkRead = onMarkRead,
+                onMarkUnread = onMarkUnread
             )
             2 -> EntryListScreen(
                 entries = state.entries.filter { it.isStarred },
