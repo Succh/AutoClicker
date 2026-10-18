@@ -12,6 +12,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.succh.unifeed.data.db.entity.Entry
+import com.succh.unifeed.data.db.entity.Folder
 
 @Composable
 fun UniFeedApp(
