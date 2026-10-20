@@ -14,5 +14,9 @@ data class Feed(
     val folderId: Long? = null,
     val lastUpdated: Long = 0L,
     val unreadCount: Int = 0,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    /** 上次刷新完成时间（成功或失败都会写入） */
+    val lastRefreshTime: Long = 0L,
+    /** 上次刷新失败原因；成功时为 null */
+    val lastRefreshError: String? = null
 )

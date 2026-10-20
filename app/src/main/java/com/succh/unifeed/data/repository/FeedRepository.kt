@@ -4,6 +4,7 @@ import com.succh.unifeed.data.db.AppDatabase
 import com.succh.unifeed.data.db.entity.Entry
 import com.succh.unifeed.data.db.entity.Feed
 import com.succh.unifeed.data.db.entity.Folder
+import com.succh.unifeed.data.model.FeedPreview
 import com.succh.unifeed.data.model.ParsedFeed
 import com.succh.unifeed.data.opml.OpmlFeed
 import com.succh.unifeed.data.rss.ContentExtractor
@@ -11,6 +12,7 @@ import com.succh.unifeed.data.rss.DiscoveredFeed
 import com.succh.unifeed.data.rss.FeedDiscovery
 import com.succh.unifeed.data.rss.RssParser
 import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -21,6 +23,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.select
 
 /**
  * 订阅源仓库：统一管理订阅 CRUD 与抓取
@@ -85,31 +88,72 @@ class FeedRepository(
         }
     }
 
-    suspend fun addFeed(url: String): Result<Feed> {
+    /**
+     * 预览订阅源：抓取解析后返回卡片数据，此阶段不入库。
+     */
+    suspend fun previewFeed(url: String): Result<FeedPreview> {
         return try {
             val (parsed, actualUrl) = fetchWithSmartFallback(url)
-            val existing = feedDao.getByUrl(url) ?: feedDao.getByUrl(actualUrl)
-            val feed = if (existing != null) {
-                existing.copy(
-                    title = parsed.title,
-                    siteUrl = parsed.siteUrl,
-                    description = parsed.description
-                ).also { feedDao.update(it) }
-                existing
-            } else {
-                val newFeed = Feed(
+            Result.success(
+                FeedPreview(
                     title = parsed.title.ifEmpty { actualUrl },
                     url = actualUrl,
                     siteUrl = parsed.siteUrl,
                     description = parsed.description,
-                    faviconUrl = buildFaviconUrl(parsed.siteUrl ?: actualUrl)
+                    faviconUrl = buildFaviconUrl(parsed.siteUrl ?: actualUrl),
+                    recentTitles = parsed.entries.take(5).map { it.title },
+                    parsed = parsed
+                )
+            )
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * 用户确认订阅：插入 Feed 并批量保存 RSS 解析出的文章。
+     */
+    suspend fun subscribePreview(preview: FeedPreview): Result<Feed> {
+        return try {
+            val existing = feedDao.getByUrl(preview.url)
+            val feed = if (existing != null) {
+                val updated = existing.copy(
+                    title = preview.title,
+                    siteUrl = preview.siteUrl,
+                    description = preview.description,
+                    faviconUrl = preview.faviconUrl.ifEmpty { existing.faviconUrl },
+                    lastUpdated = System.currentTimeMillis(),
+                    lastRefreshTime = System.currentTimeMillis(),
+                    lastRefreshError = null
+                )
+                feedDao.update(updated)
+                updated
+            } else {
+                val newFeed = Feed(
+                    title = preview.title,
+                    url = preview.url,
+                    siteUrl = preview.siteUrl,
+                    description = preview.description,
+                    faviconUrl = preview.faviconUrl,
+                    lastUpdated = System.currentTimeMillis(),
+                    lastRefreshTime = System.currentTimeMillis(),
+                    lastRefreshError = null
                 )
                 val newId = feedDao.insert(newFeed)
                 newFeed.copy(id = newId)
             }
-            saveEntries(feed.id, parsed)
+            saveEntries(feed.id, preview.parsed)
             feedDao.updateUnreadCount(feed.id)
             Result.success(feed)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun addFeed(url: String): Result<Feed> {
+        return try {
+            val preview = previewFeed(url).getOrThrow()
+            subscribePreview(preview)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -135,26 +179,32 @@ class FeedRepository(
             )
             val newId = feedDao.insert(newFeed)
             val savedFeed = newFeed.copy(id = newId)
-            // 后台异步抓取文章；失败时必须通知 UI，不能空 catch
             bgScope.launch {
                 try {
                     val (parsed, actualUrl) = fetchWithSmartFallback(url)
+                    val now = System.currentTimeMillis()
                     feedDao.update(savedFeed.copy(
                         title = parsed.title.ifEmpty { inferredTitle },
                         siteUrl = parsed.siteUrl,
                         description = parsed.description,
                         faviconUrl = buildFaviconUrl(parsed.siteUrl ?: actualUrl),
                         url = actualUrl,
-                        lastUpdated = System.currentTimeMillis()
+                        lastUpdated = now,
+                        lastRefreshTime = now,
+                        lastRefreshError = null
                     ))
-                    // 插入 Entry 后 Room 的 observeByFeed / observeAll 会自动发射新列表
                     saveEntries(newId, parsed)
                     feedDao.updateUnreadCount(newId)
                 } catch (e: Exception) {
-                    // 更新 lastUpdated 让订阅源 Flow 也能刷新，同时广播错误给 UI
                     runCatching {
                         val current = feedDao.getById(newId) ?: savedFeed
-                        feedDao.update(current.copy(lastUpdated = System.currentTimeMillis()))
+                        feedDao.update(
+                            current.copy(
+                                lastUpdated = System.currentTimeMillis(),
+                                lastRefreshTime = System.currentTimeMillis(),
+                                lastRefreshError = e.message ?: "未知错误"
+                            )
+                        )
                     }
                     _fetchErrors.emit("订阅源「${savedFeed.title}」抓取失败: ${e.message ?: "未知错误"}")
                 }
@@ -181,10 +231,8 @@ class FeedRepository(
     }
 
     /**
-     * 智能镜像回退策略：
-     * 1. 非 RSSHub 直接抓取
-     * 2. RSSHub 路由先按前缀匹配优先镜像
-     * 3. 并发测试前两个候选镜像，取第一个成功的
+     * 真并发镜像竞速：所有候选 URL 同时发起请求，
+     * 第一个返回成功且内容非空的胜出，立即 cancel 其余请求。
      */
     private suspend fun fetchWithSmartFallback(url: String): Pair<ParsedFeed, String> {
         if (!isRsshubUrl(url)) {
@@ -195,73 +243,76 @@ class FeedRepository(
             }
         }
 
-        // 提取路由路径
         val path = extractRsshubPath(url)
         if (path.isEmpty()) throw Exception("无效的 RSSHub URL")
 
-        // 根据路由前缀选择优先镜像
         val mirrorGroup = getMirrorForRoute(path)
-        
-        // 并发尝试候选镜像
-        var successResult: Pair<ParsedFeed, String>? = null
-        coroutineScope {
-            val candidates = mirrorGroup.map { mirror ->
-                async {
-                    val candidate = buildRsshubUrl(mirror, path)
-                    try {
-                        val result = parser.fetch(candidate)
-                        // 检查是否有实际内容
-                        if (result.entries.isNotEmpty() || result.title.isNotEmpty()) {
-                            result to candidate
-                        } else {
-                            null
-                        }
-                    } catch (_: Exception) {
+        val candidates = (mirrorGroup.map { buildRsshubUrl(it, path) } + url).distinct()
+
+        val winner = raceFetch(candidates)
+        if (winner != null) return winner
+
+        throw Exception("所有镜像均不可用，该路由可能暂不支持")
+    }
+
+    /**
+     * 用 select + Channel 实现竞速：每个镜像各发一次结果（成功对或 null），
+     * 第一个非空结果胜出并立刻 cancel 其余请求。
+     */
+    private suspend fun raceFetch(urls: List<String>): Pair<ParsedFeed, String>? = coroutineScope {
+        if (urls.isEmpty()) return@coroutineScope null
+        val channel = Channel<Pair<ParsedFeed, String>?>(Channel.UNLIMITED)
+        val jobs = urls.map { candidate ->
+            async {
+                val payload = try {
+                    val result = parser.fetch(candidate)
+                    if (result.entries.isNotEmpty() || result.title.isNotEmpty()) {
+                        result to candidate
+                    } else {
                         null
                     }
+                } catch (_: Exception) {
+                    null
                 }
-            }
-            for (candidate in candidates) {
-                val result = candidate.await()
-                if (result != null) {
-                    successResult = result
-                    break
+                try {
+                    channel.send(payload)
+                } catch (_: Exception) {
                 }
             }
         }
-        
-        if (successResult != null) return successResult!!
-        
-        // 最后尝试官方站（可能被 CF 挡）
         try {
-            val result = parser.fetch(url)
-            return result to url
-        } catch (_: Exception) {}
-        
-        throw Exception("所有镜像均不可用，该路由可能暂不支持")
+            repeat(urls.size) {
+                val item = select<Pair<ParsedFeed, String>?> {
+                    channel.onReceive { it }
+                }
+                if (item != null) {
+                    jobs.forEach { it.cancel() }
+                    return@coroutineScope item
+                }
+            }
+            null
+        } finally {
+            jobs.forEach { it.cancel() }
+            channel.close()
+        }
     }
 
     /**
      * 根据路由前缀返回镜像组（顺序越前优先级越高）
      */
     private fun getMirrorForRoute(path: String): List<String> {
-        // 默认优先自建实例，其次按路由类型分镜像
         val routeBased = when {
-            // 国内社交/资讯类路由
             path.startsWith("weibo/") || path.startsWith("zhihu/") || path.startsWith("bilibili/") ||
             path.startsWith("jike/") || path.startsWith("douban/") || path.startsWith("tieba/") ||
             path.startsWith("toutiao/") || path.startsWith("huoqu/") || path.startsWith("xueqiu/") -> {
                 listOf(RSSHUB_DEFAULT, RSSHUB_OWO, RSSHUB_CUPS, RSSHUB_OFFICIAL)
             }
-            // 技术类路由
             path.startsWith("github/") || path.startsWith("hackernews") || path.startsWith("v2ex/") ||
             path.startsWith("lobsters/") -> {
                 listOf(RSSHUB_DEFAULT, RSSHUB_CUPS, RSSHUB_OWO, RSSHUB_OFFICIAL)
             }
-            // 默认优先自建实例 + cups.moe
             else -> listOf(RSSHUB_DEFAULT, RSSHUB_CUPS, RSSHUB_OWO, RSSHUB_OFFICIAL)
         }
-        // 用户自定义实例插队到首位，其余镜像作为回退
         return customRsshubInstance?.let { listOf(it) + routeBased } ?: routeBased
     }
 
@@ -269,7 +320,6 @@ class FeedRepository(
         try {
             val uri = android.net.Uri.parse(url)
             val path = uri.path?.trim('/') ?: ""
-            // 去掉域名部分，保留路由路径
             return if (path.startsWith("rsshub")) {
                 path.removePrefix("rsshub").trimStart('/')
             } else {
@@ -288,12 +338,29 @@ class FeedRepository(
         val feed = feedDao.getById(feedId) ?: return
         try {
             val (parsed, _) = fetchWithSmartFallback(feed.url)
-            // 写入 Entry 后 DAO 的 Flow 会自动通知观察者刷新文章列表
             saveEntries(feed.id, parsed)
-            feedDao.update(feed.copy(lastUpdated = System.currentTimeMillis()))
+            val now = System.currentTimeMillis()
+            feedDao.update(
+                feed.copy(
+                    lastUpdated = now,
+                    lastRefreshTime = now,
+                    lastRefreshError = null
+                )
+            )
             feedDao.updateUnreadCount(feed.id)
         } catch (e: Exception) {
-            _fetchErrors.emit("刷新「${feed.title}」失败: ${e.message ?: "未知错误"}")
+            val now = System.currentTimeMillis()
+            val reason = e.message ?: "未知错误"
+            runCatching {
+                val current = feedDao.getById(feedId) ?: feed
+                feedDao.update(
+                    current.copy(
+                        lastRefreshTime = now,
+                        lastRefreshError = reason
+                    )
+                )
+            }
+            _fetchErrors.emit("刷新「${feed.title}」失败: $reason")
         }
     }
 
@@ -328,6 +395,35 @@ class FeedRepository(
     suspend fun markAllReadAll() {
         entryDao.markAllReadGlobal()
         feedDao.observeAll().first().forEach { feedDao.updateUnreadCount(it.id) }
+    }
+
+    /**
+     * 按需抓取原文：复用 ContentExtractor，成功后写回 Entry.content。
+     */
+    suspend fun loadFullContent(entry: Entry): Result<Entry> {
+        val link = entry.link
+        if (link.isNullOrBlank()) {
+            return Result.failure(Exception("没有原文链接"))
+        }
+        return try {
+            val html = parser.fetchHtml(link)
+            val extracted = ContentExtractor.extract(html)
+            if (extracted.isBlank() || extracted.length <= (entry.content?.length ?: 0)) {
+                return Result.failure(Exception("未能提取到更完整的正文"))
+            }
+            val updated = entry.copy(content = extracted)
+            entryDao.update(updated)
+            Result.success(updated)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** 判断 RSS 内容是否只有摘要（长度过短视为不完整） */
+    fun isContentIncomplete(entry: Entry): Boolean {
+        val content = entry.content ?: entry.summary ?: ""
+        val plain = content.replace(Regex("<[^>]+>"), "").trim()
+        return plain.length < 400 && !entry.link.isNullOrBlank()
     }
 
     fun observeFolders(): Flow<List<Folder>> = folderDao.observeAll()
@@ -405,34 +501,31 @@ class FeedRepository(
         return imported to skipped
     }
 
+    /**
+     * 刷新入库：只保存 RSS 解析出的内容/摘要，禁止逐篇 fetchHtml。
+     * 一次查出已有 guid，过滤后 insertAll 批量插入。
+     */
     private suspend fun saveEntries(feedId: Long, parsed: ParsedFeed) {
-        parsed.entries.forEach { pe ->
-            val existing = entryDao.getByGuid(feedId, pe.guid)
-            if (existing == null) {
-                var content = pe.content
-                if ((content.isNullOrBlank() || content.length < 200) && !pe.link.isNullOrBlank()) {
-                    try {
-                        val html = parser.fetchHtml(pe.link)
-                        val extracted = ContentExtractor.extract(html)
-                        if (extracted.length > (content?.length ?: 0)) {
-                            content = extracted
-                        }
-                    } catch (_: Exception) {
-                    }
-                }
-                entryDao.insert(
-                    Entry(
-                        feedId = feedId,
-                        guid = pe.guid,
-                        title = pe.title,
-                        link = pe.link,
-                        content = content,
-                        summary = pe.summary ?: content?.take(200),
-                        author = pe.author,
-                        publishedAt = pe.publishedAt
-                    )
+        val existingGuids = entryDao.getGuidsByFeed(feedId).toHashSet()
+        val now = System.currentTimeMillis()
+        val newcomers = parsed.entries
+            .filter { it.guid.isNotBlank() && it.guid !in existingGuids }
+            .map { pe ->
+                Entry(
+                    feedId = feedId,
+                    guid = pe.guid,
+                    title = pe.title,
+                    link = pe.link,
+                    content = pe.content,
+                    summary = pe.summary ?: pe.content?.take(200),
+                    author = pe.author,
+                    publishedAt = pe.publishedAt,
+                    fetchedAt = now,
+                    imageUrl = pe.imageUrl
                 )
             }
+        if (newcomers.isNotEmpty()) {
+            entryDao.insertAll(newcomers)
         }
     }
 

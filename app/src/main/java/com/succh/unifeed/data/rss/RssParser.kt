@@ -46,7 +46,7 @@ class RssParser(private val client: OkHttpClient = OkHttpClient.Builder()
     }
 
     /**
-     * 抓取原始 HTML 页面内容
+     * 抓取原始 HTML 页面内容（仅按需「加载全文」使用，刷新路径禁止调用）
      */
     suspend fun fetchHtml(url: String): String {
         return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -84,6 +84,9 @@ class RssParser(private val client: OkHttpClient = OkHttpClient.Builder()
         var inItem = false
         var inChannel = false
         var tagName = ""
+        // 封面图按优先级暂存：enclosure > media > 正文首图
+        var enclosureImage: String? = null
+        var mediaImage: String? = null
 
         var eventType = parser.eventType
         while (eventType != XmlPullParser.END_DOCUMENT) {
@@ -101,8 +104,49 @@ class RssParser(private val client: OkHttpClient = OkHttpClient.Builder()
                     if (tagName == "item" || tagName == "entry") {
                         inItem = true
                         currentEntry = ParsedEntry(guid = "", title = "")
+                        enclosureImage = null
+                        mediaImage = null
                     }
                     if (tagName == "channel") inChannel = true
+
+                    if (inItem && currentEntry != null) {
+                        when (tagName) {
+                            "enclosure" -> {
+                                val url = parser.getAttributeValue(null, "url")
+                                    ?: parser.getAttributeValue(null, "href")
+                                val type = parser.getAttributeValue(null, "type").orEmpty()
+                                if (!url.isNullOrBlank() && isImageHint(type, url) && enclosureImage == null) {
+                                    enclosureImage = url
+                                }
+                            }
+                            "content", "thumbnail" -> {
+                                // media:content / media:thumbnail
+                                val url = parser.getAttributeValue(null, "url")
+                                    ?: parser.getAttributeValue(null, "href")
+                                val type = parser.getAttributeValue(null, "type").orEmpty()
+                                val medium = parser.getAttributeValue(null, "medium").orEmpty()
+                                if (!url.isNullOrBlank() &&
+                                    (isImageHint(type, url) || medium.equals("image", true) || tagName == "thumbnail") &&
+                                    mediaImage == null
+                                ) {
+                                    mediaImage = url
+                                }
+                            }
+                            "link" -> {
+                                // Atom 的 link 常在属性里
+                                val href = parser.getAttributeValue(null, "href")
+                                val rel = parser.getAttributeValue(null, "rel").orEmpty()
+                                val type = parser.getAttributeValue(null, "type").orEmpty()
+                                if (!href.isNullOrBlank()) {
+                                    if (rel == "enclosure" && isImageHint(type, href) && enclosureImage == null) {
+                                        enclosureImage = href
+                                    } else if (currentEntry!!.link == null && (rel.isEmpty() || rel == "alternate")) {
+                                        currentEntry = currentEntry!!.copy(link = href)
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
 
                 XmlPullParser.TEXT -> {
@@ -116,38 +160,51 @@ class RssParser(private val client: OkHttpClient = OkHttpClient.Builder()
                     if (inItem && currentEntry != null) {
                         when (tagname) {
                             "title" -> if (currentEntry!!.title.isEmpty()) currentEntry = currentEntry!!.copy(title = text)
-                            "link" -> if (currentEntry!!.link == null) currentEntry = currentEntry!!.copy(link = text)
+                            "link" -> if (currentEntry!!.link == null && text.isNotEmpty()) currentEntry = currentEntry!!.copy(link = text)
                             "guid", "id" -> if (currentEntry!!.guid.isEmpty()) currentEntry = currentEntry!!.copy(guid = text)
-                            "description", "summary", "content", "content:encoded", "encoded" -> {
+                            "description", "summary" -> {
+                                if (currentEntry!!.summary == null || text.length > currentEntry!!.summary!!.length) {
+                                    currentEntry = currentEntry!!.copy(summary = text)
+                                }
                                 if (currentEntry!!.content == null || text.length > currentEntry!!.content!!.length) {
+                                    currentEntry = currentEntry!!.copy(content = text)
+                                }
+                            }
+                            "content", "content:encoded", "encoded" -> {
+                                if (text.isNotEmpty() && (currentEntry!!.content == null || text.length > currentEntry!!.content!!.length)) {
                                     currentEntry = currentEntry!!.copy(content = text)
                                 }
                             }
                             "pubDate", "published", "updated" -> if (currentEntry!!.publishedAt == 0L) {
                                 currentEntry = currentEntry!!.copy(publishedAt = parseDate(text))
                             }
-                            "author", "creator" -> if (currentEntry!!.author == null) currentEntry = currentEntry!!.copy(author = text)
+                            "author", "creator", "name" -> if (currentEntry!!.author == null && text.isNotEmpty()) {
+                                currentEntry = currentEntry!!.copy(author = text)
+                            }
                             "item", "entry" -> {
-                                if (currentEntry!!.guid.isEmpty()) currentEntry = currentEntry!!.copy(guid = currentEntry!!.link ?: sourceUrl + "#" + currentEntry!!.title)
-                                entries.add(currentEntry!!)
+                                if (currentEntry!!.guid.isEmpty()) {
+                                    currentEntry = currentEntry!!.copy(guid = currentEntry!!.link ?: sourceUrl + "#" + currentEntry!!.title)
+                                }
+                                val cover = enclosureImage
+                                    ?: mediaImage
+                                    ?: firstImgInHtml(currentEntry!!.content)
+                                    ?: firstImgInHtml(currentEntry!!.summary)
+                                entries.add(currentEntry!!.copy(imageUrl = cover))
                                 currentEntry = null
                                 inItem = false
                             }
                         }
                     } else {
                         when (tagname) {
-                            "title" -> if (inChannel && channelTitle.isEmpty()) channelTitle = text
-                            "link" -> if (inChannel && channelLink.isEmpty()) channelLink = text
-                            "description", "subtitle" -> if (inChannel && channelDesc.isEmpty()) channelDesc = text
+                            "title" -> if ((inChannel || isAtom) && channelTitle.isEmpty()) channelTitle = text
+                            "link" -> if ((inChannel || isAtom) && channelLink.isEmpty() && text.isNotEmpty()) channelLink = text
+                            "description", "subtitle" -> if ((inChannel || isAtom) && channelDesc.isEmpty()) channelDesc = text
                             "channel" -> inChannel = false
                         }
                     }
                 }
             }
             eventType = parser.next()
-        }
-
-        if (channelTitle.isEmpty()) {
         }
 
         return ParsedFeed(
@@ -157,6 +214,28 @@ class RssParser(private val client: OkHttpClient = OkHttpClient.Builder()
             description = channelDesc.ifEmpty { null },
             entries = entries.take(MAX_ENTRIES_PER_FEED)
         )
+    }
+
+    private fun isImageHint(type: String, url: String): Boolean {
+        if (type.startsWith("image/", ignoreCase = true)) return true
+        val lower = url.lowercase()
+        return lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png") ||
+            lower.endsWith(".gif") || lower.endsWith(".webp") || lower.endsWith(".avif") ||
+            lower.contains(".jpg?") || lower.contains(".jpeg?") || lower.contains(".png?") ||
+            lower.contains(".webp?")
+    }
+
+    /** 从正文 HTML 取第一张 img 的 src / data-src */
+    private fun firstImgInHtml(html: String?): String? {
+        if (html.isNullOrBlank()) return null
+        val regex = Regex(
+            """<img[^>]+(?:src|data-src|data-original)=["']([^"']+)["']""",
+            RegexOption.IGNORE_CASE
+        )
+        val match = regex.find(html) ?: return null
+        val src = match.groupValues.getOrNull(1)?.trim().orEmpty()
+        return src.takeIf { it.startsWith("http") || it.startsWith("//") }
+            ?.let { if (it.startsWith("//")) "https:$it" else it }
     }
 
     private fun parseDate(dateStr: String): Long {

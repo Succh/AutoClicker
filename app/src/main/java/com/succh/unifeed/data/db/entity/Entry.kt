@@ -16,5 +16,7 @@ data class Entry(
     val publishedAt: Long = 0L,
     val isRead: Boolean = false,
     val isStarred: Boolean = false,
-    val fetchedAt: Long = System.currentTimeMillis()
+    val fetchedAt: Long = System.currentTimeMillis(),
+    /** 封面图 URL，解析自 enclosure / media / 正文首图 */
+    val imageUrl: String? = null
 )
