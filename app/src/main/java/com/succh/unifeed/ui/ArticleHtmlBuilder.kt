@@ -40,16 +40,17 @@ object ArticleHtmlBuilder {
         }
         val textAlign = if (justify) "text-align: justify;" else ""
         val imgRule = if (showImages) {
-            "img { max-width: 100%; height: auto; display: block; margin: 16px auto; border-radius: 8px; }"
+            "img { max-width: 100%; height: auto; display: block; margin: 16px auto; border-radius: 12px; }"
         } else {
             "img { display: none !important; }"
         }
         return """
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: $fontFamily; font-size: ${fontSize}px; line-height: $lineHeight; color: ${p.fg}; background: ${p.bg}; padding: 16px 16px 40px; word-wrap: break-word; $textAlign -webkit-text-size-adjust: 100%; }
+body { font-family: $fontFamily; font-size: ${fontSize}px; line-height: $lineHeight; color: ${p.fg}; background: ${p.bg}; padding: 20px 20px 48px; word-wrap: break-word; $textAlign -webkit-text-size-adjust: 100%; }
 $imgRule
 a { color: ${p.link}; text-decoration: none; }
-p { margin: 12px 0; }
+p { margin: 0 0 12px 0; }
+h1.title { font-size: 1.6em; line-height: 1.35; font-weight: 700; margin: 0 0 12px 0; }
 h1, h2, h3, h4 { margin: 20px 0 10px 0; line-height: 1.4; }
 pre, code { font-family: Menlo, Consolas, monospace; font-size: 0.85em; background: ${p.codeBg}; border-radius: 6px; color: ${p.fg}; }
 pre { padding: 16px; overflow-x: auto; margin: 16px 0; white-space: pre-wrap; word-wrap: break-word; }
@@ -59,7 +60,7 @@ table { width: 100%; border-collapse: collapse; margin: 16px 0; }
 th, td { border: 1px solid ${p.border}; padding: 8px 12px; }
 ul, ol { margin: 12px 0; padding-left: 24px; }
 hr { border: none; border-top: 1px solid ${p.border}; margin: 24px 0; }
-.meta { font-size: 14px; color: ${p.muted}; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid ${p.border}; line-height: 1.6; }
+.meta { font-size: 14px; color: ${p.muted}; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid ${p.border}; line-height: 1.6; }
 .orig { display: block; margin: 32px auto 8px; padding: 10px 20px; text-align: center; border: 1px solid ${p.border}; border-radius: 20px; color: ${p.link}; font-size: 15px; }
 """.trimIndent()
     }
@@ -70,10 +71,15 @@ hr { border: none; border-top: 1px solid ${p.border}; margin: 24px 0; }
         link: String?,
         publishedAt: Long,
         content: String,
-        prefs: ReaderPrefs
+        prefs: ReaderPrefs,
+        feedTitle: String? = null
     ): String {
         val meta = buildString {
-            if (!author.isNullOrBlank()) append(escape(author))
+            if (!feedTitle.isNullOrBlank()) append(escape(feedTitle))
+            if (!author.isNullOrBlank()) {
+                if (isNotEmpty()) append(" · ")
+                append(escape(author))
+            }
             if (publishedAt > 0L) {
                 if (isNotEmpty()) append(" · ")
                 append(formatFullTime(publishedAt))
@@ -90,6 +96,7 @@ hr { border: none; border-top: 1px solid ${p.border}; margin: 24px 0; }
 <meta name='referrer' content='no-referrer'>
 <style>${buildCss(prefs.theme, prefs.fontSize, prefs.lineHeight, prefs.showImages, prefs.serifFont, prefs.justifyText)}</style>
 </head><body>
+<h1 class='title'>${escape(title)}</h1>
 <div class='meta'>$meta</div>
 $body
 $orig

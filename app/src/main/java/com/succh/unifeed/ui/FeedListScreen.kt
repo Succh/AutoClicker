@@ -1,6 +1,9 @@
 package com.succh.unifeed.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -21,14 +24,11 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
-import coil.compose.AsyncImage
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RssFeed
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Badge
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -38,12 +38,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.ui.draw.clip
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,10 +53,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.succh.unifeed.data.db.entity.Feed
 import com.succh.unifeed.data.db.entity.Folder
+import com.succh.unifeed.ui.theme.FoloDimens
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -72,7 +80,8 @@ fun FeedListScreen(
     onMoveFeedToFolder: (Long, Long?) -> Unit = { _, _ -> },
     onRenameFeed: (Long, String) -> Unit = { _, _ -> },
     searchQuery: String = "",
-    onSearchQueryChange: (String) -> Unit = {}
+    onSearchQueryChange: (String) -> Unit = {},
+    onRefreshFeed: (Feed) -> Unit = {}
 ) {
     var showFolderManager by remember { mutableStateOf(false) }
     var moveTarget by remember { mutableStateOf<Feed?>(null) }
@@ -86,12 +95,12 @@ fun FeedListScreen(
                 title = { Text("订阅源") },
                 actions = {
                     TextButton(onClick = { showFolderManager = true }) {
-                        Text("管理文件夹", color = MaterialTheme.colorScheme.onPrimary)
+                        Text("管理文件夹")
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground
                 )
             )
         },
@@ -111,9 +120,15 @@ fun FeedListScreen(
                 onValueChange = onSearchQueryChange,
                 placeholder = { Text("搜索订阅源...") },
                 singleLine = true,
+                shape = RoundedCornerShape(FoloDimens.SearchRadius),
+                colors = TextFieldDefaults.colors(
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    disabledIndicatorColor = Color.Transparent
+                ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .padding(horizontal = FoloDimens.ScreenHorizontal, vertical = 8.dp)
             )
             if (feeds.isEmpty()) {
             Box(
@@ -147,38 +162,18 @@ fun FeedListScreen(
                     val groupFeeds = grouped[folderId].orEmpty()
                     val headerName = if (folderId == null) "未分类" else folderNameById[folderId] ?: "未知文件夹"
                     item(key = "header_${folderId}") {
-                        // 文件夹分组标题：更大字号，并显示该分组下的订阅源数量
-                        Surface(
+                        // Folo 侧边栏分组标题：大写 + 字母间距 + 灰色小字
+                        Text(
+                            text = headerName.uppercase(),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                letterSpacing = 1.6.sp,
+                                fontWeight = FontWeight.Medium
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant,
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    Icons.Default.Folder,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(22.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(Modifier.width(10.dp))
-                                Text(
-                                    text = headerName,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Text(
-                                    text = "${groupFeeds.size} 个订阅",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
+                                .padding(horizontal = FoloDimens.ScreenHorizontal, vertical = 12.dp)
+                        )
                     }
 
                     items(groupFeeds, key = { feed -> feed.id }) { feed ->
@@ -188,7 +183,8 @@ fun FeedListScreen(
                             onClick = { onSelectFeed(feed.id) },
                             onDelete = { onDeleteFeed(feed) },
                             onMove = { moveTarget = feed },
-                            onRename = { renamingFeed = feed }
+                            onRename = { renamingFeed = feed },
+                            onRefresh = { onRefreshFeed(feed) }
                         )
                     }
                 }
@@ -233,6 +229,7 @@ fun FeedListScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 private fun FeedItem(
     feed: Feed,
@@ -240,79 +237,116 @@ private fun FeedItem(
     onClick: () -> Unit,
     onDelete: () -> Unit,
     onMove: () -> Unit,
-    onRename: () -> Unit = {}
+    onRename: () -> Unit = {},
+    onRefresh: () -> Unit = {}
 ) {
     val colors = MaterialTheme.colorScheme
     var menuExpanded by remember { mutableStateOf(false) }
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (selected) colors.primaryContainer else colors.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            // 右滑弹出操作菜单，条目本身不移除
+            if (value == SwipeToDismissBoxValue.StartToEnd) {
+                menuExpanded = true
+            }
+            false
+        }
+    )
+
+    SwipeToDismissBox(
+        state = dismissState,
+        enableDismissFromEndToStart = false,
+        backgroundContent = {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 8.dp)
+                    .clip(RoundedCornerShape(FoloDimens.FeedSelectedRadius))
+                    .background(colors.primaryContainer),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Icon(
+                    Icons.Default.MoreVert,
+                    contentDescription = null,
+                    tint = colors.onPrimaryContainer,
+                    modifier = Modifier.padding(start = 16.dp)
+                )
+            }
+        }
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .height(FoloDimens.FeedItemHeight)
+                .padding(horizontal = 8.dp)
+                .clip(RoundedCornerShape(FoloDimens.FeedSelectedRadius))
+                .background(if (selected) colors.primaryContainer.copy(alpha = 0.45f) else Color.Transparent)
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = { menuExpanded = true }
+                )
+                .padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 更大更清晰的 favicon（40dp）
             if (!feed.faviconUrl.isNullOrBlank()) {
                 AsyncImage(
                     model = feed.faviconUrl,
                     contentDescription = "网站图标",
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(FoloDimens.FeedFaviconSize)
                         .clip(RoundedCornerShape(8.dp))
                 )
             } else {
                 Icon(
                     Icons.Default.RssFeed,
                     contentDescription = null,
-                    modifier = Modifier.size(40.dp),
+                    modifier = Modifier.size(FoloDimens.FeedFaviconSize),
                     tint = colors.primary
                 )
             }
-            Spacer(modifier = Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = feed.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(Modifier.height(2.dp))
-                // 订阅源 URL 用小字灰色显示，单行超出省略
-                Text(
-                    text = feed.url,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = feed.title,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
             if (feed.unreadCount > 0) {
-                Badge(
-                    containerColor = colors.primary,
-                    contentColor = colors.onPrimary
+                // 未读数用主色胶囊徽章
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(FoloDimens.PillRadius))
+                        .background(colors.primary)
+                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text("${feed.unreadCount}")
+                    Text(
+                        text = "${feed.unreadCount}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.onPrimary
+                    )
                 }
             }
-            // 操作收进三点溢出菜单，避免一排按钮挤占标题空间
             Box {
-                IconButton(onClick = { menuExpanded = true }) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "更多操作")
+                IconButton(onClick = { menuExpanded = true }, modifier = Modifier.size(32.dp)) {
+                    Icon(
+                        Icons.Default.MoreVert,
+                        contentDescription = "更多操作",
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
                 DropdownMenu(
                     expanded = menuExpanded,
                     onDismissRequest = { menuExpanded = false }
                 ) {
+                    DropdownMenuItem(
+                        text = { Text("刷新") },
+                        onClick = {
+                            menuExpanded = false
+                            onRefresh()
+                        },
+                        leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) }
+                    )
                     DropdownMenuItem(
                         text = { Text("重命名") },
                         onClick = {

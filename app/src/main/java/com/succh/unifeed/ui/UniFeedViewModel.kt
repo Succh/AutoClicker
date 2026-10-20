@@ -192,6 +192,15 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    /** 刷新指定订阅源，供侧边栏长按/右滑菜单使用 */
+    fun refreshFeedById(feedId: Long) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+            repo.refreshFeed(feedId)
+            _uiState.update { it.copy(isLoading = false) }
+        }
+    }
+
     fun deleteFeed(feed: Feed) {
         viewModelScope.launch {
             repo.deleteFeed(feed)
