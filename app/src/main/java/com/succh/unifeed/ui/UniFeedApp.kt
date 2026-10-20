@@ -24,6 +24,16 @@ fun UniFeedApp(
     var tab by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
     val prefs = remember { ReaderPrefs(context) }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // 抓取/刷新失败时用 Snackbar 通知用户，避免静默失败
+    LaunchedEffect(state.error) {
+        val message = state.error
+        if (!message.isNullOrBlank()) {
+            snackbarHostState.showSnackbar(message)
+            viewModel.clearError()
+        }
+    }
 
     fun updateRsshubInstance(instance: String?) {
         prefs.rsshubInstance = instance
@@ -85,6 +95,7 @@ fun UniFeedApp(
             onTabChange = { tab = it },
             state = state,
             prefs = prefs,
+            snackbarHostState = snackbarHostState,
             onSelectFeed = { feedId ->
                 viewModel.selectFeed(feedId)
                 if (feedId != null) tab = 1
@@ -97,7 +108,7 @@ fun UniFeedApp(
             },
             onStarToggle = viewModel::setStarred,
             onFilter = viewModel::setFilter,
-            onRefresh = viewModel::refreshAll,
+            onRefresh = viewModel::refreshCurrentFeed,
             onMarkAllRead = viewModel::markAllRead,
             onRsshubInstanceChange = { updateRsshubInstance(it) },
             folders = state.folders,
@@ -120,6 +131,7 @@ private fun MainTabScreen(
     onTabChange: (Int) -> Unit,
     state: UniFeedUiState,
     prefs: ReaderPrefs,
+    snackbarHostState: SnackbarHostState = SnackbarHostState(),
     onSelectFeed: (Long?) -> Unit,
     onAddFeed: () -> Unit,
     onDeleteFeed: (com.succh.unifeed.data.db.entity.Feed) -> Unit,
@@ -141,6 +153,7 @@ private fun MainTabScreen(
     onMarkUnread: (Entry) -> Unit = {}
 ) {
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(
