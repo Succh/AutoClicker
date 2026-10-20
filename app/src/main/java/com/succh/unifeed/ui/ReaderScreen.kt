@@ -7,7 +7,9 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -16,11 +18,15 @@ import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -28,14 +34,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.succh.unifeed.data.db.entity.Entry
-import java.io.InputStream
-import java.net.HttpURLConnection
-import java.net.URL
+import com.succh.unifeed.data.rss.ReaderImageClient
+import okhttp3.Response
+import java.util.Collections
 
 @OptIn(ExperimentalMaterial3Api::class)
 @SuppressLint("SetJavaScriptEnabled")
@@ -47,19 +55,22 @@ fun ReaderScreen(
     onToggleStar: (Entry, Boolean) -> Unit,
     onOpenBrowser: (Entry) -> Unit,
     onShare: (Entry) -> Unit,
-    feedTitle: String? = null
+    feedTitle: String? = null,
+    feedFaviconUrl: String? = null,
+    contentIncomplete: Boolean = false,
+    isLoadingFullContent: Boolean = false,
+    onLoadFullContent: () -> Unit = {}
 ) {
     val colors = MaterialTheme.colorScheme
     var showAaPanel by remember { mutableStateOf(false) }
-    // 收藏状态本地化：点击即时刷新图标，不等数据库回流
     var starred by remember(entry.id, entry.isStarred) { mutableStateOf(entry.isStarred) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     val articleHtml = remember(
-        entry.content, entry.summary, entry.title, feedTitle,
+        entry.content, entry.summary, entry.title, entry.imageUrl, feedTitle, feedFaviconUrl,
         prefs.fontSize, prefs.lineHeight, prefs.theme,
         prefs.showImages, prefs.serifFont, prefs.justifyText
     ) {
-        // 标题区（大标题 + 订阅源 + 发布时间）与正文排版由 HTML 模板统一控制
         ArticleHtmlBuilder.build(
             title = entry.title,
             author = entry.author,
@@ -67,12 +78,15 @@ fun ReaderScreen(
             publishedAt = entry.publishedAt,
             content = entry.content ?: entry.summary ?: "",
             prefs = prefs,
-            feedTitle = feedTitle
+            feedTitle = feedTitle,
+            feedFaviconUrl = feedFaviconUrl,
+            coverImageUrl = entry.imageUrl
         )
     }
     val baseUrl = entry.link?.takeIf { it.startsWith("http") }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -111,69 +125,73 @@ fun ReaderScreen(
             )
         }
     ) { padding ->
-        AndroidView(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding),
-            factory = { ctx ->
-                WebView(ctx).apply {
-                    layoutParams = ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    )
-                    setBackgroundColor(android.graphics.Color.TRANSPARENT)
-                    settings.javaScriptEnabled = false
-                    settings.loadWithOverviewMode = true
-                    settings.useWideViewPort = true
-                    settings.domStorageEnabled = true
-                    settings.defaultTextEncodingName = "UTF-8"
-                    settings.loadsImagesAutomatically = true
-                    settings.blockNetworkImage = false
-                    settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                    webViewClient = object : WebViewClient() {
-                        override fun shouldInterceptRequest(
-                            view: WebView?,
-                            request: WebResourceRequest?
-                        ): WebResourceResponse? {
-                            val url = request?.url?.toString() ?: return null
-                            // 图片检测：扩展名 + 常见图床路径
-                            val isImage = url.matches(Regex(".*\\.(png|jpg|jpeg|gif|webp|svg|bmp|ico|avif)(\\?.*)?$", RegexOption.IGNORE_CASE))
-                                || url.contains("/img/") || url.contains("/image/")
-                                || url.contains("/images/") || url.contains("/pics/")
-                                || url.contains("mmbiz.") || url.contains("wximg.")
-                                || url.contains("sinaimg.") || url.contains("hdslb.")
-                                || url.contains("/wp-content/uploads/")
-                            if (!isImage) return null
-                            return try {
-                                val conn = URL(url).openConnection() as HttpURLConnection
-                                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36")
-                                conn.setRequestProperty("Referer", "")
-                                conn.setRequestProperty("Accept", "image/avif,image/webp,image/png,image/*,*/*;q=0.8")
-                                conn.setRequestProperty("Accept-Language", "zh-CN,zh;q=0.9")
-                                conn.connectTimeout = 15000
-                                conn.readTimeout = 15000
-                                conn.instanceFollowRedirects = true
-                                conn.connect()
-                                val contentType = conn.contentType ?: "image/jpeg"
-                                val encoding = conn.contentEncoding ?: "UTF-8"
-                                val inputStream: InputStream = conn.inputStream
-                                WebResourceResponse(contentType, encoding, inputStream)
-                            } catch (_: Exception) {
-                                null
+                .padding(padding)
+        ) {
+            AndroidView(
+                modifier = Modifier.fillMaxSize(),
+                factory = { ctx ->
+                    WebView(ctx).apply {
+                        layoutParams = ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
+                        )
+                        setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                        settings.javaScriptEnabled = false
+                        settings.loadWithOverviewMode = true
+                        settings.useWideViewPort = true
+                        settings.domStorageEnabled = true
+                        settings.defaultTextEncodingName = "UTF-8"
+                        settings.loadsImagesAutomatically = true
+                        settings.blockNetworkImage = false
+                        settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                        webViewClient = object : WebViewClient() {
+                            override fun shouldInterceptRequest(
+                                view: WebView?,
+                                request: WebResourceRequest?
+                            ): WebResourceResponse? {
+                                val url = request?.url?.toString() ?: return null
+                                val isImage = url.matches(Regex(".*\\.(png|jpg|jpeg|gif|webp|svg|bmp|ico|avif)(\\?.*)?$", RegexOption.IGNORE_CASE))
+                                    || url.contains("/img/") || url.contains("/image/")
+                                    || url.contains("/images/") || url.contains("/pics/")
+                                    || url.contains("mmbiz.") || url.contains("wximg.")
+                                    || url.contains("sinaimg.") || url.contains("hdslb.")
+                                    || url.contains("/wp-content/uploads/")
+                                if (!isImage) return null
+                                return interceptImage(ctx, url, baseUrl)
                             }
                         }
+                        loadDataWithBaseURL(baseUrl, articleHtml, "text/html", "UTF-8", null)
                     }
-                    loadDataWithBaseURL(baseUrl, articleHtml, "text/html", "UTF-8", null)
+                },
+                update = { webView ->
+                    if (webView.tag != articleHtml) {
+                        webView.tag = articleHtml
+                        webView.loadDataWithBaseURL(baseUrl, articleHtml, "text/html", "UTF-8", null)
+                    }
                 }
-            },
-            update = { webView ->
-                // 只在文章内容变化时重载，避免重组时丢阅读进度
-                if (webView.tag != articleHtml) {
-                    webView.tag = articleHtml
-                    webView.loadDataWithBaseURL(baseUrl, articleHtml, "text/html", "UTF-8", null)
+            )
+
+            if (contentIncomplete) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isLoadingFullContent) {
+                        CircularProgressIndicator()
+                    } else {
+                        Button(onClick = onLoadFullContent) {
+                            Text("加载全文")
+                        }
+                    }
                 }
             }
-        )
+        }
     }
 
     if (showAaPanel) {
@@ -182,4 +200,73 @@ fun ReaderScreen(
             onDismiss = { showAaPanel = false }
         )
     }
+}
+
+/**
+ * 用带磁盘缓存的 OkHttp 拉图：先按域名映射 Referer，失败再带文章页 Referer 重试。
+ * 未命中映射时不加 Referer 头（不是设空字符串）。
+ */
+private fun interceptImage(
+    context: android.content.Context,
+    imageUrl: String,
+    articleReferer: String?
+): WebResourceResponse? {
+    val client = ReaderImageClient.get(context)
+    val mapped = ReaderImageClient.mappedReferer(imageUrl)
+    val first = runCatching {
+        client.newCall(ReaderImageClient.imageRequest(imageUrl, mapped)).execute()
+    }.getOrNull()
+    val firstOk = first != null && first.isSuccessful && (first.body?.contentLength() ?: 1L) != 0L
+    val response = if (firstOk) {
+        first
+    } else {
+        first?.close()
+        val retryReferer = articleReferer?.takeIf { it.startsWith("http") }
+        if (retryReferer.isNullOrBlank()) {
+            null
+        } else {
+            runCatching {
+                client.newCall(ReaderImageClient.imageRequest(imageUrl, retryReferer)).execute()
+            }.getOrNull()
+        }
+    } ?: return null
+
+    return try {
+        if (!response.isSuccessful) {
+            response.close()
+            return null
+        }
+        toWebResourceResponse(response)
+    } catch (_: Exception) {
+        response.close()
+        null
+    }
+}
+
+private fun toWebResourceResponse(response: Response): WebResourceResponse {
+    val body = response.body ?: throw IllegalStateException("empty body")
+    val mediaType = body.contentType()
+    val mime = mediaType?.let { "${it.type}/${it.subtype}" } ?: response.header("Content-Type")?.substringBefore(";")?.trim()
+    if (mime.isNullOrBlank()) {
+        response.close()
+        throw IllegalStateException("missing content-type")
+    }
+    val encoding = mediaType?.charset()?.name()
+    val headers = HashMap<String, String>()
+    response.headers.names().forEach { name ->
+        if (name.equals("Content-Encoding", true) ||
+            name.equals("Content-Length", true) ||
+            name.equals("Transfer-Encoding", true)
+        ) return@forEach
+        val value = response.header(name)
+        if (value != null) headers[name] = value
+    }
+    return WebResourceResponse(
+        mime,
+        encoding,
+        response.code,
+        response.message.ifBlank { "OK" },
+        Collections.unmodifiableMap(headers),
+        body.byteStream()
+    )
 }

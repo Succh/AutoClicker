@@ -9,19 +9,19 @@ import java.util.Locale
 
 /**
  * 将 RSS 条目正文转成带样式的 HTML，供 ReaderScreen 的 WebView 渲染。
- * 支持阅读主题 / 字号 / 行距 / 图片开关 / 衬线字体 / 两端对齐等个性化设置。
+ * 新闻风排版：来源行 → 大标题 → 作者/时间 → 分隔线 → 封面图 → 正文。
  */
 object ArticleHtmlBuilder {
 
     private data class Palette(
         val bg: String, val fg: String, val muted: String,
-        val border: String, val codeBg: String, val link: String
+        val border: String, val codeBg: String, val link: String, val quote: String
     )
 
     private fun palette(theme: ReaderTheme): Palette = when (theme) {
-        ReaderTheme.LIGHT -> Palette("#ffffff", "#1c1c1e", "#8a8a8e", "#e5e5ea", "#f5f5f7", "#007aff")
-        ReaderTheme.SEPIA -> Palette("#faf6ef", "#3d3a34", "#8a8378", "#e2dccb", "#f0ead9", "#8b5e3c")
-        ReaderTheme.DARK -> Palette("#1c1c1e", "#e8e8ed", "#98989f", "#3a3a3c", "#2c2c2e", "#4da3ff")
+        ReaderTheme.LIGHT -> Palette("#ffffff", "#1c1c1e", "#6e6e73", "#e5e5ea", "#f5f5f7", "#007aff", "#3a3a3c")
+        ReaderTheme.SEPIA -> Palette("#faf6ef", "#3d3a34", "#8a8378", "#e2dccb", "#f0ead9", "#8b5e3c", "#5c564c")
+        ReaderTheme.DARK -> Palette("#1c1c1e", "#e8e8ed", "#98989f", "#3a3a3c", "#2c2c2e", "#4da3ff", "#c7c7cc")
     }
 
     private fun buildCss(
@@ -38,29 +38,33 @@ object ArticleHtmlBuilder {
         } else {
             "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', sans-serif"
         }
-        val textAlign = if (justify) "text-align: justify;" else ""
+        val textAlign = if (justify) "text-align: justify;" else "text-align: left;"
         val imgRule = if (showImages) {
-            "img { max-width: 100%; height: auto; display: block; margin: 16px auto; border-radius: 12px; }"
+            "img { max-width: 100%; width: 100%; height: auto; display: block; margin: 20px 0; border-radius: 12px; }"
         } else {
             "img { display: none !important; }"
         }
+        val bodyLh = lineHeight
         return """
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: $fontFamily; font-size: ${fontSize}px; line-height: $lineHeight; color: ${p.fg}; background: ${p.bg}; padding: 20px 20px 48px; word-wrap: break-word; $textAlign -webkit-text-size-adjust: 100%; }
+body { font-family: $fontFamily; font-size: ${fontSize}px; line-height: $bodyLh; color: ${p.fg}; background: ${p.bg}; padding: 16px 20px 48px; word-wrap: break-word; $textAlign -webkit-text-size-adjust: 100%; }
 $imgRule
 a { color: ${p.link}; text-decoration: none; }
-p { margin: 0 0 12px 0; }
-h1.title { font-size: 1.6em; line-height: 1.35; font-weight: 700; margin: 0 0 12px 0; }
-h1, h2, h3, h4 { margin: 20px 0 10px 0; line-height: 1.4; }
+p { margin: 0 0 1.1em 0; text-indent: 0; line-height: $bodyLh; }
+h1.headline { font-size: 1.75em; line-height: 1.28; font-weight: 800; letter-spacing: -0.02em; margin: 8px 0 12px 0; }
+h1, h2, h3, h4 { margin: 24px 0 12px 0; line-height: 1.35; }
 pre, code { font-family: Menlo, Consolas, monospace; font-size: 0.85em; background: ${p.codeBg}; border-radius: 6px; color: ${p.fg}; }
 pre { padding: 16px; overflow-x: auto; margin: 16px 0; white-space: pre-wrap; word-wrap: break-word; }
 code { padding: 2px 6px; }
-blockquote { border-left: 4px solid ${p.border}; margin: 16px 0; padding: 8px 16px; color: ${p.muted}; }
+blockquote { border-left: 4px solid ${p.link}; margin: 20px 0; padding: 4px 0 4px 16px; color: ${p.quote}; background: transparent; }
 table { width: 100%; border-collapse: collapse; margin: 16px 0; }
 th, td { border: 1px solid ${p.border}; padding: 8px 12px; }
-ul, ol { margin: 12px 0; padding-left: 24px; }
-hr { border: none; border-top: 1px solid ${p.border}; margin: 24px 0; }
-.meta { font-size: 14px; color: ${p.muted}; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid ${p.border}; line-height: 1.6; }
+ul, ol { margin: 12px 0 1.1em; padding-left: 24px; }
+hr { border: none; border-top: 1px solid ${p.border}; margin: 20px 0; }
+.source-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: ${p.muted}; margin-bottom: 4px; }
+.source-row img.favicon { width: 18px; height: 18px; border-radius: 4px; margin: 0; }
+.byline { font-size: 13px; color: ${p.muted}; margin: 0 0 4px 0; }
+.cover { width: 100%; height: auto; display: block; margin: 16px 0 20px; border-radius: 12px; }
 .orig { display: block; margin: 32px auto 8px; padding: 10px 20px; text-align: center; border: 1px solid ${p.border}; border-radius: 20px; color: ${p.link}; font-size: 15px; }
 """.trimIndent()
     }
@@ -72,22 +76,36 @@ hr { border: none; border-top: 1px solid ${p.border}; margin: 24px 0; }
         publishedAt: Long,
         content: String,
         prefs: ReaderPrefs,
-        feedTitle: String? = null
+        feedTitle: String? = null,
+        feedFaviconUrl: String? = null,
+        coverImageUrl: String? = null
     ): String {
-        val meta = buildString {
-            if (!feedTitle.isNullOrBlank()) append(escape(feedTitle))
-            if (!author.isNullOrBlank()) {
-                if (isNotEmpty()) append(" · ")
-                append(escape(author))
+        val sourceRow = buildString {
+            append("<div class='source-row'>")
+            if (!feedFaviconUrl.isNullOrBlank()) {
+                append("<img class='favicon' src='${escapeAttr(feedFaviconUrl)}' alt=''>")
             }
+            if (!feedTitle.isNullOrBlank()) append("<span>${escape(feedTitle)}</span>")
             if (publishedAt > 0L) {
-                if (isNotEmpty()) append(" · ")
-                append(formatFullTime(publishedAt))
+                if (!feedTitle.isNullOrBlank()) append("<span>·</span>")
+                append("<span>${escape(formatFullTime(publishedAt))}</span>")
+            }
+            append("</div>")
+        }
+        val byline = buildString {
+            val parts = mutableListOf<String>()
+            if (!author.isNullOrBlank()) parts.add(escape(author))
+            if (publishedAt > 0L) parts.add(escape(formatFullTime(publishedAt)))
+            if (parts.isNotEmpty()) {
+                append("<div class='byline'>${parts.joinToString(" · ")}</div>")
             }
         }
+        val cover = if (!coverImageUrl.isNullOrBlank() && prefs.showImages) {
+            "<img class='cover' src='${escapeAttr(coverImageUrl)}' alt='' referrerpolicy='no-referrer'>"
+        } else ""
         val body = normalize(content, link)
         val orig = if (!link.isNullOrBlank()) {
-            "<a class='orig' href='${escape(link)}'>阅读原文 ↗</a>"
+            "<a class='orig' href='${escapeAttr(link)}'>阅读原文 ↗</a>"
         } else ""
         return """<!DOCTYPE html>
 <html lang='zh'><head>
@@ -96,8 +114,11 @@ hr { border: none; border-top: 1px solid ${p.border}; margin: 24px 0; }
 <meta name='referrer' content='no-referrer'>
 <style>${buildCss(prefs.theme, prefs.fontSize, prefs.lineHeight, prefs.showImages, prefs.serifFont, prefs.justifyText)}</style>
 </head><body>
-<h1 class='title'>${escape(title)}</h1>
-<div class='meta'>$meta</div>
+$sourceRow
+<h1 class='headline'>${escape(title)}</h1>
+$byline
+<hr>
+$cover
 $body
 $orig
 </body></html>"""
@@ -123,7 +144,6 @@ $orig
                     for (k in listOf("data-src", "data-original", "data-lazy-src", "data-url", "data-actualsrc", "data-lazy", "data-echo", "data-thumb", "data-srcset", "data-ks-lazyload")) {
                         val v = img.attr(k)
                         if (v.isNotBlank()) {
-                            // 懒加载值可能是 srcset 格式（含逗号空格），只取第一个 URL
                             img.attr("src", v.substringBefore(" ").substringBefore(","))
                             break
                         }
@@ -132,13 +152,10 @@ $orig
                 var src = img.attr("src")
                 src = absolutize(src, baseUrl)
                 if (src.isNotBlank()) img.attr("src", src)
-                // 移除 srcset 避免 WebView 加载模糊/缩放变体，简化加载
                 img.removeAttr("srcset")
                 img.removeAttr("data-src")
                 img.removeAttr("data-original")
-                // 不设 loading=lazy：WebView 以 data: 加载时懒加载可能不触发
                 img.removeAttr("loading")
-                // 防盗链：不发送 Referer，绕过图床 Referer 校验
                 img.attr("referrerpolicy", "no-referrer")
             }
 
@@ -154,12 +171,6 @@ $orig
         }
     }
 
-    /**
-     * 把各种形态的相对地址转成绝对地址：
-     *  - "//host/path" → "https://host/path"
-     *  - "/path"、"path"、"./path"、"../path" → 基于 baseUrl 解析
-     *  - 已是 http/https/data/blob 等绝对地址 → 原样返回
-     */
     private fun absolutize(url: String, baseUrl: String?): String {
         if (url.isBlank()) return ""
         if (url.startsWith("//")) return "https:$url"
@@ -189,6 +200,14 @@ $orig
             .replace("\"", "&#34;")
             .replace("'", "&#39;")
             .replace("\n", "<br>")
+    }
+
+    private fun escapeAttr(text: String): String {
+        return text.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace("\"", "&#34;")
+            .replace("'", "&#39;")
     }
 
     private fun formatFullTime(timestamp: Long): String {

@@ -42,7 +42,10 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -75,7 +78,9 @@ fun EntryListScreen(
     onSearchQueryChange: (String) -> Unit = {},
     onMarkRead: (Entry) -> Unit = {},
     onMarkUnread: (Entry) -> Unit = {},
-    feeds: List<Feed> = emptyList()
+    feeds: List<Feed> = emptyList(),
+    headerFeed: Feed? = null,
+    headerEntryCount: Int = 0
 ) {
     // 用 feedId 索引订阅源，供卡片顶部展示名称与 favicon
     val feedById = remember(feeds) { feeds.associateBy { it.id } }
@@ -139,6 +144,11 @@ fun EntryListScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(FoloDimens.CardSpacing)
             ) {
+                if (headerFeed != null) {
+                    item(key = "feed_header") {
+                        FeedInfoHeader(feed = headerFeed, entryCount = headerEntryCount)
+                    }
+                }
                 if (filteredEntries.isEmpty()) {
                     item(key = "empty") {
                         Box(
@@ -243,6 +253,49 @@ private fun SwipeableEntryItem(
 }
 
 @Composable
+private fun FeedInfoHeader(feed: Feed, entryCount: Int) {
+    val colors = MaterialTheme.colorScheme
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (!feed.faviconUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = feed.faviconUrl,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(8.dp))
+            )
+        } else {
+            Icon(
+                Icons.Default.RssFeed,
+                contentDescription = null,
+                modifier = Modifier.size(40.dp),
+                tint = colors.primary
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(feed.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val meta = buildString {
+                append("${entryCount} 篇")
+                append(" · ${feed.unreadCount} 未读")
+                if (feed.lastRefreshTime > 0L) {
+                    append(" · ${formatRelativeTimeZh(feed.lastRefreshTime)}")
+                }
+            }
+            Text(meta, style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
+            if (!feed.lastRefreshError.isNullOrBlank()) {
+                Text(feed.lastRefreshError, style = MaterialTheme.typography.labelSmall, color = colors.error, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+@Composable
 private fun EntryItem(
     entry: Entry,
     feedTitle: String,
@@ -252,8 +305,8 @@ private fun EntryItem(
     onStar: () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
-    // 已读文章整体降透明度，突出未读时间线
     val cardAlpha = if (entry.isRead) 0.6f else 1f
+    var showThumb by remember(entry.id, entry.imageUrl) { mutableStateOf(!entry.imageUrl.isNullOrBlank()) }
 
     Card(
         onClick = onClick,
@@ -269,7 +322,6 @@ private fun EntryItem(
                 .fillMaxWidth()
                 .height(IntrinsicSize.Min)
         ) {
-            // 未读：左侧 3dp 主色竖条
             if (!entry.isRead) {
                 Box(
                     modifier = Modifier
@@ -366,6 +418,19 @@ private fun EntryItem(
                         )
                     }
                 }
+            }
+            if (showThumb && !entry.imageUrl.isNullOrBlank()) {
+                AsyncImage(
+                    model = entry.imageUrl,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .padding(end = 12.dp, top = 12.dp, bottom = 12.dp)
+                        .size(width = 112.dp, height = 84.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .align(Alignment.CenterVertically),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    onError = { _ -> showThumb = false }
+                )
             }
         }
     }

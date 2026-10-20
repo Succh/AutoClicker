@@ -19,6 +19,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
+import com.succh.unifeed.data.model.FeedPreview
 import com.succh.unifeed.data.rss.DiscoveredFeed
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -33,7 +35,12 @@ fun DiscoverScreen(
     onDiscover: (String) -> Unit,
     onAddDirect: (String) -> Unit,
     onSubscribe: (String, String?) -> Unit,
-    onClearError: () -> Unit
+    onClearError: () -> Unit,
+    feedPreview: FeedPreview? = null,
+    isPreviewing: Boolean = false,
+    onPreviewUrl: (String) -> Unit = {},
+    onConfirmSubscribe: () -> Unit = {},
+    onClearPreview: () -> Unit = {}
 ) {
     var activeTab by remember { mutableIntStateOf(0) }
     var cat by remember { mutableStateOf<RsshubCategory?>(null) }
@@ -306,17 +313,29 @@ fun DiscoverScreen(
                             }
                             Spacer(Modifier.width(8.dp))
                             OutlinedButton(
-                                onClick = { if (query.isNotBlank()) onAddDirect(query) },
-                                enabled = query.isNotBlank() && !isDiscovering && !isSubscribing
+                                onClick = { if (query.isNotBlank()) onPreviewUrl(query) },
+                                enabled = query.isNotBlank() && !isDiscovering && !isSubscribing && !isPreviewing
                             ) {
                                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(4.dp))
-                                Text("直接添加")
+                                Text("预览并订阅")
                             }
                         }
                         Spacer(Modifier.height(16.dp))
 
                         when {
+                            isPreviewing -> Box(
+                                Modifier.fillMaxWidth().padding(32.dp),
+                                contentAlignment = Alignment.Center
+                            ) { CircularProgressIndicator() }
+                            feedPreview != null -> {
+                                FeedPreviewCard(
+                                    preview = feedPreview,
+                                    isSubscribing = isSubscribing,
+                                    onSubscribe = onConfirmSubscribe,
+                                    onDismiss = onClearPreview
+                                )
+                            }
                             isDiscovering -> Box(
                                 Modifier.fillMaxWidth().padding(32.dp),
                                 contentAlignment = Alignment.Center
@@ -332,7 +351,7 @@ fun DiscoverScreen(
                                         Card(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .clickable { onSubscribe(feed.feedUrl, feed.title) },
+                                                .clickable { onPreviewUrl(feed.feedUrl) },
                                             colors = CardDefaults.cardColors(
                                                 containerColor = MaterialTheme.colorScheme.surfaceVariant
                                             )
@@ -392,6 +411,72 @@ fun DiscoverScreen(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FeedPreviewCard(
+    preview: FeedPreview,
+    isSubscribing: Boolean,
+    onSubscribe: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (preview.faviconUrl.isNotBlank()) {
+                    AsyncImage(
+                        model = preview.faviconUrl,
+                        contentDescription = null,
+                        modifier = Modifier.size(36.dp)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                } else {
+                    Icon(Icons.Default.RssFeed, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(12.dp))
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(preview.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (!preview.description.isNullOrBlank()) {
+                        Text(
+                            preview.description,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+            if (preview.recentTitles.isNotEmpty()) {
+                Spacer(Modifier.height(12.dp))
+                Text("最近文章", style = MaterialTheme.typography.labelMedium)
+                preview.recentTitles.forEach { title ->
+                    Text(
+                        title,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Row {
+                Button(onClick = onSubscribe, enabled = !isSubscribing) {
+                    if (isSubscribing) {
+                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Text("订阅")
+                }
+                Spacer(Modifier.width(8.dp))
+                TextButton(onClick = onDismiss) { Text("取消") }
             }
         }
     }

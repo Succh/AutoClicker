@@ -65,17 +65,29 @@ fun UniFeedApp(
             onDiscover = { viewModel.discoverFeeds(it) },
             onAddDirect = { viewModel.addFeed(it) },
             onSubscribe = { url, title -> viewModel.addFeed(url, title) },
-            onClearError = { viewModel.clearError() }
+            onClearError = { viewModel.clearError() },
+            feedPreview = state.feedPreview,
+            isPreviewing = state.isPreviewing,
+            onPreviewUrl = { viewModel.previewFeed(it) },
+            onConfirmSubscribe = { viewModel.confirmSubscribe() },
+            onClearPreview = { viewModel.clearFeedPreview() }
         )
         return
     }
 
     val entry = selectedEntry
     if (entry != null) {
+        val feed = state.feeds.firstOrNull { it.id == entry.feedId }
         ReaderScreen(
             entry = entry,
             prefs = prefs,
-            feedTitle = state.feeds.firstOrNull { it.id == entry.feedId }?.title,
+            feedTitle = feed?.title,
+            feedFaviconUrl = feed?.faviconUrl,
+            contentIncomplete = viewModel.isContentIncomplete(entry),
+            isLoadingFullContent = state.isLoadingFullContent,
+            onLoadFullContent = {
+                viewModel.loadFullContent(entry) { updated -> selectedEntry = updated }
+            },
             onBack = { selectedEntry = null },
             onToggleStar = { e, s -> viewModel.setStarred(e, s) },
             onOpenBrowser = { e ->
@@ -203,25 +215,33 @@ private fun MainTabScreen(
                 searchQuery = searchQuery,
                 onSearchQueryChange = onSearchQueryChange,
                 onRefreshFeed = onRefreshFeed,
+                latestTitles = state.latestTitles,
                 modifier = Modifier.padding(padding)
             )
-            1 -> EntryListScreen(
-                entries = state.entries,
-                feeds = state.feeds,
-                onEntryClick = onEntryClick,
-                onStarToggle = onStarToggle,
-                showSummary = prefs.listShowSummary,
-                modifier = Modifier.padding(padding),
-                onRefresh = onRefresh,
-                isRefreshing = state.isLoading,
-                onFilter = onFilter,
-                filterMode = state.filterMode,
-                onMarkAllRead = onMarkAllRead,
-                searchQuery = searchQuery,
-                onSearchQueryChange = onSearchQueryChange,
-                onMarkRead = onMarkRead,
-                onMarkUnread = onMarkUnread
-            )
+            1 -> {
+                val headerFeed = if (state.filterMode == FilterMode.ALL) {
+                    state.selectedFeedId?.let { id -> state.feeds.firstOrNull { it.id == id } }
+                } else null
+                EntryListScreen(
+                    entries = state.entries,
+                    feeds = state.feeds,
+                    onEntryClick = onEntryClick,
+                    onStarToggle = onStarToggle,
+                    showSummary = prefs.listShowSummary,
+                    modifier = Modifier.padding(padding),
+                    onRefresh = onRefresh,
+                    isRefreshing = state.isLoading,
+                    onFilter = onFilter,
+                    filterMode = state.filterMode,
+                    onMarkAllRead = onMarkAllRead,
+                    searchQuery = searchQuery,
+                    onSearchQueryChange = onSearchQueryChange,
+                    onMarkRead = onMarkRead,
+                    onMarkUnread = onMarkUnread,
+                    headerFeed = headerFeed,
+                    headerEntryCount = state.entries.size
+                )
+            }
             2 -> EntryListScreen(
                 entries = state.entries.filter { it.isStarred },
                 feeds = state.feeds,
