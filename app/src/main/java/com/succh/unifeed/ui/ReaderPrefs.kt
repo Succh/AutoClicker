@@ -20,7 +20,7 @@ class ReaderPrefs(context: Context) {
             sp.edit().putFloat(KEY_SIZE, v).apply()
         }
 
-    private val _lineHeight = mutableFloatStateOf(sp.getFloat(KEY_LH, 1.7f))
+    private val _lineHeight = mutableFloatStateOf(sp.getFloat(KEY_LH, 1.6f))
     var lineHeight: Float
         get() = _lineHeight.floatValue
         set(value) {

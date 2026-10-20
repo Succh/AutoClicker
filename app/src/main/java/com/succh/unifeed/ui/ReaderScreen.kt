@@ -46,7 +46,8 @@ fun ReaderScreen(
     onBack: () -> Unit,
     onToggleStar: (Entry, Boolean) -> Unit,
     onOpenBrowser: (Entry) -> Unit,
-    onShare: (Entry) -> Unit
+    onShare: (Entry) -> Unit,
+    feedTitle: String? = null
 ) {
     val colors = MaterialTheme.colorScheme
     var showAaPanel by remember { mutableStateOf(false) }
@@ -54,17 +55,19 @@ fun ReaderScreen(
     var starred by remember(entry.id, entry.isStarred) { mutableStateOf(entry.isStarred) }
 
     val articleHtml = remember(
-        entry.content, entry.summary,
+        entry.content, entry.summary, entry.title, feedTitle,
         prefs.fontSize, prefs.lineHeight, prefs.theme,
         prefs.showImages, prefs.serifFont, prefs.justifyText
     ) {
+        // 标题区（大标题 + 订阅源 + 发布时间）与正文排版由 HTML 模板统一控制
         ArticleHtmlBuilder.build(
             title = entry.title,
             author = entry.author,
             link = entry.link,
             publishedAt = entry.publishedAt,
             content = entry.content ?: entry.summary ?: "",
-            prefs = prefs
+            prefs = prefs,
+            feedTitle = feedTitle
         )
     }
     val baseUrl = entry.link?.takeIf { it.startsWith("http") }

@@ -12,6 +12,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.succh.unifeed.data.db.entity.Entry
+import com.succh.unifeed.data.db.entity.Feed
 import com.succh.unifeed.data.db.entity.Folder
 
 @Composable
@@ -74,6 +75,7 @@ fun UniFeedApp(
         ReaderScreen(
             entry = entry,
             prefs = prefs,
+            feedTitle = state.feeds.firstOrNull { it.id == entry.feedId }?.title,
             onBack = { selectedEntry = null },
             onToggleStar = { e, s -> viewModel.setStarred(e, s) },
             onOpenBrowser = { e ->
@@ -120,7 +122,8 @@ fun UniFeedApp(
             searchQuery = state.searchQuery,
             onSearchQueryChange = viewModel::setSearchQuery,
             onMarkRead = viewModel::markRead,
-            onMarkUnread = viewModel::markUnread
+            onMarkUnread = viewModel::markUnread,
+            onRefreshFeed = { feed -> viewModel.refreshFeedById(feed.id) }
         )
     }
 }
@@ -150,7 +153,8 @@ private fun MainTabScreen(
     searchQuery: String = "",
     onSearchQueryChange: (String) -> Unit = {},
     onMarkRead: (Entry) -> Unit = {},
-    onMarkUnread: (Entry) -> Unit = {}
+    onMarkUnread: (Entry) -> Unit = {},
+    onRefreshFeed: (Feed) -> Unit = {}
 ) {
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -198,10 +202,12 @@ private fun MainTabScreen(
                 onRenameFeed = onRenameFeed,
                 searchQuery = searchQuery,
                 onSearchQueryChange = onSearchQueryChange,
+                onRefreshFeed = onRefreshFeed,
                 modifier = Modifier.padding(padding)
             )
             1 -> EntryListScreen(
                 entries = state.entries,
+                feeds = state.feeds,
                 onEntryClick = onEntryClick,
                 onStarToggle = onStarToggle,
                 showSummary = prefs.listShowSummary,
@@ -218,6 +224,7 @@ private fun MainTabScreen(
             )
             2 -> EntryListScreen(
                 entries = state.entries.filter { it.isStarred },
+                feeds = state.feeds,
                 onEntryClick = onEntryClick,
                 onStarToggle = onStarToggle,
                 showSummary = prefs.listShowSummary,
