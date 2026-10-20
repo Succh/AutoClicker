@@ -22,11 +22,16 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10'
-      - name: Build Debug APK
-        run: gradle assembleDebug
       - name: Get version
         id: version
         run: echo "tag=v0.1.${{ github.run_number }}" >> $GITHUB_OUTPUT
+      - name: Bump version
+        run: |
+          sed -i "s/versionCode = .*/versionCode = ${{ github.run_number }}/" app/build.gradle.kts
+          sed -i "s/versionName = \".*\"/versionName = \"${{ steps.version.outputs.tag }}\"/" app/build.gradle.kts
+          grep -n "versionCode\|versionName" app/build.gradle.kts
+      - name: Build Debug APK
+        run: gradle assembleDebug
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
