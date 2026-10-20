@@ -2,6 +2,8 @@ package com.succh.unifeed.data.db
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.succh.unifeed.data.db.dao.EntryDao
 import com.succh.unifeed.data.db.dao.FeedDao
 import com.succh.unifeed.data.db.dao.FolderDao
@@ -11,11 +13,22 @@ import com.succh.unifeed.data.db.entity.Folder
 
 @Database(
     entities = [Feed::class, Entry::class, Folder::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun feedDao(): FeedDao
     abstract fun entryDao(): EntryDao
     abstract fun folderDao(): FolderDao
+
+    companion object {
+        /** v1 → v2：文章封面图 + 订阅源刷新状态字段 */
+        val MIGRATION_1_2: Migration = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE entries ADD COLUMN imageUrl TEXT")
+                db.execSQL("ALTER TABLE feeds ADD COLUMN lastRefreshTime INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE feeds ADD COLUMN lastRefreshError TEXT")
+            }
+        }
+    }
 }

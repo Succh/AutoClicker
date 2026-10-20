@@ -63,6 +63,7 @@ import coil.compose.AsyncImage
 import com.succh.unifeed.data.db.entity.Feed
 import com.succh.unifeed.data.db.entity.Folder
 import com.succh.unifeed.ui.theme.FoloDimens
+import com.succh.unifeed.ui.theme.formatRelativeTimeZh
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,7 +82,8 @@ fun FeedListScreen(
     onRenameFeed: (Long, String) -> Unit = { _, _ -> },
     searchQuery: String = "",
     onSearchQueryChange: (String) -> Unit = {},
-    onRefreshFeed: (Feed) -> Unit = {}
+    onRefreshFeed: (Feed) -> Unit = {},
+    latestTitles: Map<Long, String> = emptyMap()
 ) {
     var showFolderManager by remember { mutableStateOf(false) }
     var moveTarget by remember { mutableStateOf<Feed?>(null) }
@@ -180,6 +182,7 @@ fun FeedListScreen(
                         FeedItem(
                             feed = feed,
                             selected = feed.id == selectedFeedId,
+                            latestTitle = latestTitles[feed.id],
                             onClick = { onSelectFeed(feed.id) },
                             onDelete = { onDeleteFeed(feed) },
                             onMove = { moveTarget = feed },
@@ -234,6 +237,7 @@ fun FeedListScreen(
 private fun FeedItem(
     feed: Feed,
     selected: Boolean,
+    latestTitle: String? = null,
     onClick: () -> Unit,
     onDelete: () -> Unit,
     onMove: () -> Unit,
@@ -276,15 +280,15 @@ private fun FeedItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(FoloDimens.FeedItemHeight)
-                .padding(horizontal = 8.dp)
+                .heightIn(min = FoloDimens.FeedItemHeight)
+                .padding(horizontal = 8.dp, vertical = 6.dp)
                 .clip(RoundedCornerShape(FoloDimens.FeedSelectedRadius))
                 .background(if (selected) colors.primaryContainer.copy(alpha = 0.45f) else Color.Transparent)
                 .combinedClickable(
                     onClick = onClick,
                     onLongClick = { menuExpanded = true }
                 )
-                .padding(horizontal = 8.dp),
+                .padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (!feed.faviconUrl.isNullOrBlank()) {
@@ -304,13 +308,38 @@ private fun FeedItem(
                 )
             }
             Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = feed.title,
-                style = MaterialTheme.typography.bodyLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = feed.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                val refreshText = if (feed.lastRefreshTime > 0L) formatRelativeTimeZh(feed.lastRefreshTime) else ""
+                val subtitle = when {
+                    !latestTitle.isNullOrBlank() && refreshText.isNotBlank() -> "$latestTitle · $refreshText"
+                    !latestTitle.isNullOrBlank() -> latestTitle
+                    else -> refreshText
+                }
+                if (subtitle.isNotBlank()) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (!feed.lastRefreshError.isNullOrBlank()) {
+                    Text(
+                        text = feed.lastRefreshError,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.error,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
             if (feed.unreadCount > 0) {
                 // 未读数用主色胶囊徽章
                 Box(

@@ -24,8 +24,18 @@ interface EntryDao {
     @Query("SELECT * FROM entries WHERE feedId = :feedId AND guid = :guid LIMIT 1")
     suspend fun getByGuid(feedId: Long, guid: String): Entry?
 
+    /** 一次查出该源已有 guid，供刷新路径批量去重 */
+    @Query("SELECT guid FROM entries WHERE feedId = :feedId")
+    suspend fun getGuidsByFeed(feedId: Long): List<String>
+
+    @Query("SELECT COUNT(*) FROM entries WHERE feedId = :feedId")
+    suspend fun countByFeed(feedId: Long): Int
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(entry: Entry): Long
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAll(entries: List<Entry>)
 
     @Update
     suspend fun update(entry: Entry)

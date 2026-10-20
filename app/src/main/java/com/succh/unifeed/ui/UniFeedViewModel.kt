@@ -7,6 +7,7 @@ import com.succh.unifeed.UniFeedApp
 import com.succh.unifeed.data.db.entity.Entry
 import com.succh.unifeed.data.db.entity.Feed
 import com.succh.unifeed.data.db.entity.Folder
+import com.succh.unifeed.data.model.FeedPreview
 import com.succh.unifeed.data.opml.OpmlManager
 import com.succh.unifeed.data.rss.DiscoveredFeed
 import kotlinx.coroutines.Dispatchers
@@ -29,7 +30,11 @@ data class UniFeedUiState(
     val isSubscribing: Boolean = false,
     val subscribeError: String? = null,
     val folders: List<Folder> = emptyList(),
-    val searchQuery: String = ""
+    val searchQuery: String = "",
+    val feedPreview: FeedPreview? = null,
+    val isPreviewing: Boolean = false,
+    val isLoadingFullContent: Boolean = false,
+    val latestTitles: Map<Long, String> = emptyMap()
 )
 
 enum class FilterMode { ALL, UNREAD, STARRED }
@@ -72,7 +77,13 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
                 _uiState.update { it.copy(entries = filtered) }
             }
         }
-        // 订阅仓库后台抓取错误，展示到 UI 的 error 字段
+        viewModelScope.launch {
+            repo.observeAllEntries().collect { all ->
+                val titles = all.groupBy { it.feedId }
+                    .mapValues { (_, list) -> list.maxByOrNull { it.publishedAt }?.title.orEmpty() }
+                _uiState.update { it.copy(latestTitles = titles) }
+            }
+        }
         viewModelScope.launch {
             repo.fetchErrors.collect { message ->
                 _uiState.update { it.copy(error = message, isLoading = false) }
@@ -82,7 +93,7 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
 
     fun discoverFeeds(input: String) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isDiscovering = true, discoveryError = null, discoveredFeeds = emptyList()) }
+            _uiState.update { it.copy(isDiscovering = true, discoveryError = null, discoveredFeeds = emptyList(), feedPreview = null) }
             val result = repo.discoverFeeds(input)
             result.onSuccess { feeds ->
                 _uiState.update { it.copy(isDiscovering = false, discoveredFeeds = feeds) }
@@ -117,18 +128,70 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun clearDiscovery() {
-        _uiState.update { it.copy(isDiscovering = false, discoveredFeeds = emptyList(), discoveryError = null) }
+        _uiState.update {
+            it.copy(
+                isDiscovering = false,
+                discoveredFeeds = emptyList(),
+                discoveryError = null,
+                feedPreview = null,
+                isPreviewing = false
+            )
+        }
+    }
+
+    /** 输入 URL 后先抓取解析展示预览，此阶段不入库 */
+    fun previewFeed(url: String) {
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isPreviewing = true,
+                    subscribeError = null,
+                    feedPreview = null,
+                    discoveryError = null
+                )
+            }
+            val result = repo.previewFeed(url.trim())
+            result.onSuccess { preview ->
+                _uiState.update { it.copy(isPreviewing = false, feedPreview = preview) }
+            }.onFailure { e ->
+                _uiState.update {
+                    it.copy(isPreviewing = false, subscribeError = e.message ?: "预览失败")
+                }
+            }
+        }
+    }
+
+    /** 用户点「订阅」才真正插入 Feed 并保存文章 */
+    fun confirmSubscribe() {
+        val preview = _uiState.value.feedPreview ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSubscribing = true, subscribeError = null) }
+            val result = repo.subscribePreview(preview)
+            result.onSuccess { feed ->
+                _uiState.update {
+                    it.copy(
+                        isSubscribing = false,
+                        selectedFeedId = feed.id,
+                        feedPreview = null
+                    )
+                }
+            }.onFailure { e ->
+                _uiState.update { it.copy(isSubscribing = false, subscribeError = e.message ?: "订阅失败") }
+            }
+        }
+    }
+
+    fun clearFeedPreview() {
+        _uiState.update { it.copy(feedPreview = null, isPreviewing = false) }
     }
 
     /**
-     * 添加订阅：RSSHub 源走即时订阅（先存后取），普通源走原有抓取流程
-     * 可传 titleHint 用于即时订阅时显示标题
+     * 添加订阅：RSSHub 源走即时订阅（先存后取），普通源走预览流程
      */
     fun addFeed(url: String, titleHint: String? = null) {
         viewModelScope.launch {
             _uiState.update { it.copy(isSubscribing = true, subscribeError = null) }
             val trimmed = url.trim()
-            // RSSHub 源：即时订阅，不等待网络
             if (trimmed.contains("rsshub.app") || trimmed.contains("succh.zone.id") ||
                 trimmed.contains("rsshub.cups.moe") || trimmed.contains("rss.owo.nz")) {
                 val result = repo.addFeedInstant(trimmed, titleHint)
@@ -136,7 +199,6 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
                     _uiState.update {
                         it.copy(isSubscribing = false, selectedFeedId = feed.id, isLoading = true)
                     }
-                    // 添加成功后主动再刷新一次，确保文章被加载进列表
                     repo.refreshFeed(feed.id)
                     _uiState.update { it.copy(isLoading = false) }
                 }.onFailure { e ->
@@ -144,7 +206,6 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
                 }
                 return@launch
             }
-            // 普通源：先探测再抓取
             val looksLikeFeed = trimmed.endsWith(".xml") || trimmed.endsWith(".rss") ||
                 trimmed.endsWith(".atom") || trimmed.contains("/feed")
             val feedUrl = if (looksLikeFeed) {
@@ -157,13 +218,8 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
                     trimmed
                 }
             }
-            val result = repo.addFeed(feedUrl)
             _uiState.update { it.copy(isSubscribing = false) }
-            result.onSuccess { feed ->
-                _uiState.update { it.copy(selectedFeedId = feed.id) }
-            }.onFailure { e ->
-                _uiState.update { it.copy(subscribeError = e.message ?: "添加失败：无法识别该链接中的订阅源") }
-            }
+            previewFeed(feedUrl)
         }
     }
 
@@ -175,10 +231,6 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    /**
-     * 只刷新当前选中的订阅源；未选中时回退为刷新全部。
-     * 文章列表下拉刷新应调用此方法，避免误刷全部源。
-     */
     fun refreshCurrentFeed() {
         viewModelScope.launch {
             val feedId = _uiState.value.selectedFeedId
@@ -192,7 +244,6 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    /** 刷新指定订阅源，供侧边栏长按/右滑菜单使用 */
     fun refreshFeedById(feedId: Long) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
@@ -237,14 +288,29 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
         _uiState.update { it.copy(error = null, subscribeError = null) }
     }
 
-    /** 导出 OPML：从仓库取 feeds + folders 生成 XML 字符串 */
+    fun isContentIncomplete(entry: Entry): Boolean = repo.isContentIncomplete(entry)
+
+    fun loadFullContent(entry: Entry, onUpdated: (Entry) -> Unit) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoadingFullContent = true, error = null) }
+            val result = repo.loadFullContent(entry)
+            result.onSuccess { updated ->
+                _uiState.update { it.copy(isLoadingFullContent = false) }
+                onUpdated(updated)
+            }.onFailure { e ->
+                _uiState.update {
+                    it.copy(isLoadingFullContent = false, error = e.message ?: "加载全文失败")
+                }
+            }
+        }
+    }
+
     suspend fun exportOpml(): String = withContext(Dispatchers.IO) {
         val feeds = repo.observeFeeds().first()
         val folders = repo.observeFolders().first()
         OpmlManager.export(feeds, folders)
     }
 
-    /** 导入 OPML：解析输入流并批量导入，返回 Pair(成功数, 跳过数) */
     suspend fun importOpml(inputStream: InputStream): Pair<Int, Int> = withContext(Dispatchers.IO) {
         val list = OpmlManager.parse(inputStream)
         repo.importFeeds(list)
