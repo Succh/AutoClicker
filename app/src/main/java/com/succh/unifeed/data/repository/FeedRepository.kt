@@ -13,6 +13,9 @@ import com.succh.unifeed.data.rss.RssParser
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,6 +34,13 @@ class FeedRepository(
     private val entryDao = db.entryDao()
     private val folderDao = db.folderDao()
     private val bgScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /**
+     * 后台抓取失败时向 UI 暴露错误信息，避免静默吞掉异常。
+     * extraBufferCapacity 保证暂时没有订阅者也能暂存错误。
+     */
+    private val _fetchErrors = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    val fetchErrors: SharedFlow<String> = _fetchErrors.asSharedFlow()
 
     /**
      * 可配置的自定义 RSSHub 实例地址（用户在设置页填写）。
@@ -125,6 +135,7 @@ class FeedRepository(
             )
             val newId = feedDao.insert(newFeed)
             val savedFeed = newFeed.copy(id = newId)
+            // 后台异步抓取文章；失败时必须通知 UI，不能空 catch
             bgScope.launch {
                 try {
                     val (parsed, actualUrl) = fetchWithSmartFallback(url)
@@ -136,9 +147,16 @@ class FeedRepository(
                         url = actualUrl,
                         lastUpdated = System.currentTimeMillis()
                     ))
+                    // 插入 Entry 后 Room 的 observeByFeed / observeAll 会自动发射新列表
                     saveEntries(newId, parsed)
                     feedDao.updateUnreadCount(newId)
-                } catch (_: Exception) {
+                } catch (e: Exception) {
+                    // 更新 lastUpdated 让订阅源 Flow 也能刷新，同时广播错误给 UI
+                    runCatching {
+                        val current = feedDao.getById(newId) ?: savedFeed
+                        feedDao.update(current.copy(lastUpdated = System.currentTimeMillis()))
+                    }
+                    _fetchErrors.emit("订阅源「${savedFeed.title}」抓取失败: ${e.message ?: "未知错误"}")
                 }
             }
             Result.success(savedFeed)
@@ -270,10 +288,12 @@ class FeedRepository(
         val feed = feedDao.getById(feedId) ?: return
         try {
             val (parsed, _) = fetchWithSmartFallback(feed.url)
+            // 写入 Entry 后 DAO 的 Flow 会自动通知观察者刷新文章列表
             saveEntries(feed.id, parsed)
             feedDao.update(feed.copy(lastUpdated = System.currentTimeMillis()))
             feedDao.updateUnreadCount(feed.id)
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            _fetchErrors.emit("刷新「${feed.title}」失败: ${e.message ?: "未知错误"}")
         }
     }
 

@@ -15,18 +15,23 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
 import coil.compose.AsyncImage
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.RssFeed
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
@@ -46,6 +51,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.succh.unifeed.data.db.entity.Feed
 import com.succh.unifeed.data.db.entity.Folder
@@ -111,9 +117,7 @@ fun FeedListScreen(
             )
             if (feeds.isEmpty()) {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
+                modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -136,42 +140,41 @@ fun FeedListScreen(
             val sortedKeys = grouped.keys.sortedBy { it ?: Long.MAX_VALUE }
 
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
+                modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(vertical = 8.dp)
             ) {
                 sortedKeys.forEach { folderId ->
                     val groupFeeds = grouped[folderId].orEmpty()
                     val headerName = if (folderId == null) "未分类" else folderNameById[folderId] ?: "未知文件夹"
                     item(key = "header_${folderId}") {
+                        // 文件夹分组标题：更大字号，并显示该分组下的订阅源数量
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 4.dp),
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
                             color = MaterialTheme.colorScheme.surfaceVariant,
-                            shape = MaterialTheme.shapes.small
+                            shape = RoundedCornerShape(12.dp)
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
                                     Icons.Default.Folder,
                                     contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
+                                    modifier = Modifier.size(22.dp),
                                     tint = MaterialTheme.colorScheme.primary
                                 )
-                                Spacer(Modifier.width(8.dp))
+                                Spacer(Modifier.width(10.dp))
                                 Text(
                                     text = headerName,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f)
                                 )
-                                Spacer(Modifier.width(8.dp))
                                 Text(
-                                    text = "${groupFeeds.size}",
-                                    style = MaterialTheme.typography.labelMedium,
+                                    text = "${groupFeeds.size} 个订阅",
+                                    style = MaterialTheme.typography.labelLarge,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -240,73 +243,107 @@ private fun FeedItem(
     onRename: () -> Unit = {}
 ) {
     val colors = MaterialTheme.colorScheme
+    var menuExpanded by remember { mutableStateOf(false) }
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .padding(horizontal = 16.dp, vertical = 6.dp)
             .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (selected) colors.primaryContainer else colors.surface
-        )
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Favicon
-            if (feed.faviconUrl != null) {
+            // 更大更清晰的 favicon（40dp）
+            if (!feed.faviconUrl.isNullOrBlank()) {
                 AsyncImage(
                     model = feed.faviconUrl,
                     contentDescription = "网站图标",
                     modifier = Modifier
-                        .size(32.dp)
-                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(8.dp))
                 )
-                Spacer(modifier = Modifier.width(12.dp))
+            } else {
+                Icon(
+                    Icons.Default.RssFeed,
+                    contentDescription = null,
+                    modifier = Modifier.size(40.dp),
+                    tint = colors.primary
+                )
             }
+            Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = feed.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    maxLines = 1
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-                if (feed.unreadCount > 0) {
-                    Text(
-                        text = "${feed.unreadCount} 未读",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colors.primary
-                    )
-                } else {
-                    Text(
-                        text = feed.url,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colors.onSurfaceVariant,
-                        maxLines = 1
-                    )
+                Spacer(Modifier.height(2.dp))
+                // 订阅源 URL 用小字灰色显示，单行超出省略
+                Text(
+                    text = feed.url,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (feed.unreadCount > 0) {
+                Badge(
+                    containerColor = colors.primary,
+                    contentColor = colors.onPrimary
+                ) {
+                    Text("${feed.unreadCount}")
                 }
             }
-            IconButton(onClick = onMove) {
-                Icon(
-                    Icons.Default.Folder,
-                    contentDescription = "移动到文件夹",
-                    tint = colors.primary
-                )
-            }
-            IconButton(onClick = onRename) {
-                Icon(
-                    Icons.Default.Edit,
-                    contentDescription = "重命名",
-                    tint = colors.primary
-                )
-            }
-            IconButton(onClick = onDelete) {
-                Icon(
-                    Icons.Default.Delete,
-                    contentDescription = "删除",
-                    tint = colors.error
-                )
+            // 操作收进三点溢出菜单，避免一排按钮挤占标题空间
+            Box {
+                IconButton(onClick = { menuExpanded = true }) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "更多操作")
+                }
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("重命名") },
+                        onClick = {
+                            menuExpanded = false
+                            onRename()
+                        },
+                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("移动到文件夹") },
+                        onClick = {
+                            menuExpanded = false
+                            onMove()
+                        },
+                        leadingIcon = { Icon(Icons.Default.Folder, contentDescription = null) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("删除") },
+                        onClick = {
+                            menuExpanded = false
+                            onDelete()
+                        },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = null,
+                                tint = colors.error
+                            )
+                        }
+                    )
+                }
             }
         }
     }

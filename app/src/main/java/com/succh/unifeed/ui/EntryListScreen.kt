@@ -51,10 +51,11 @@ fun EntryListScreen(
     onMarkRead: (Entry) -> Unit = {},
     onMarkUnread: (Entry) -> Unit = {}
 ) {
+    // 始终用可滚动的 LazyColumn 作为子内容，空列表时下拉刷新才能生效
     PullToRefreshBox(
         isRefreshing = isRefreshing,
         onRefresh = onRefresh,
-        modifier = modifier
+        modifier = modifier.fillMaxSize()
     ) {
         Column(
             modifier = Modifier.fillMaxSize()
@@ -94,22 +95,25 @@ fun EntryListScreen(
                     }
                 }
             }
-            if (entries.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("暂无文章", style = MaterialTheme.typography.bodyLarge)
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(vertical = 8.dp)
-                ) {
-                    val filteredEntries = if (searchQuery.isBlank()) entries else entries.filter {
-                        it.title.contains(searchQuery, ignoreCase = true) ||
-                        (it.summary?.contains(searchQuery, ignoreCase = true) == true)
+            val filteredEntries = if (searchQuery.isBlank()) entries else entries.filter {
+                it.title.contains(searchQuery, ignoreCase = true) ||
+                (it.summary?.contains(searchQuery, ignoreCase = true) == true)
+            }
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(vertical = 8.dp)
+            ) {
+                if (filteredEntries.isEmpty()) {
+                    item(key = "empty") {
+                        Box(
+                            modifier = Modifier
+                                .fillParentMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("暂无文章", style = MaterialTheme.typography.bodyLarge)
+                        }
                     }
+                } else {
                     items(filteredEntries, key = { it.id }) { entry ->
                         SwipeableEntryItem(
                             entry = entry,

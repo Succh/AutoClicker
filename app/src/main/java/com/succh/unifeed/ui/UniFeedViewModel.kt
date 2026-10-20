@@ -72,6 +72,12 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
                 _uiState.update { it.copy(entries = filtered) }
             }
         }
+        // 订阅仓库后台抓取错误，展示到 UI 的 error 字段
+        viewModelScope.launch {
+            repo.fetchErrors.collect { message ->
+                _uiState.update { it.copy(error = message, isLoading = false) }
+            }
+        }
     }
 
     fun discoverFeeds(input: String) {
@@ -127,7 +133,12 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
                 trimmed.contains("rsshub.cups.moe") || trimmed.contains("rss.owo.nz")) {
                 val result = repo.addFeedInstant(trimmed, titleHint)
                 result.onSuccess { feed ->
-                    _uiState.update { it.copy(isSubscribing = false, selectedFeedId = feed.id) }
+                    _uiState.update {
+                        it.copy(isSubscribing = false, selectedFeedId = feed.id, isLoading = true)
+                    }
+                    // 添加成功后主动再刷新一次，确保文章被加载进列表
+                    repo.refreshFeed(feed.id)
+                    _uiState.update { it.copy(isLoading = false) }
                 }.onFailure { e ->
                     _uiState.update { it.copy(isSubscribing = false, subscribeError = e.message ?: "订阅失败") }
                 }
@@ -158,8 +169,25 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
 
     fun refreshAll() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
+            _uiState.update { it.copy(isLoading = true, error = null) }
             repo.refreshAll()
+            _uiState.update { it.copy(isLoading = false) }
+        }
+    }
+
+    /**
+     * 只刷新当前选中的订阅源；未选中时回退为刷新全部。
+     * 文章列表下拉刷新应调用此方法，避免误刷全部源。
+     */
+    fun refreshCurrentFeed() {
+        viewModelScope.launch {
+            val feedId = _uiState.value.selectedFeedId
+            _uiState.update { it.copy(isLoading = true, error = null) }
+            if (feedId != null) {
+                repo.refreshFeed(feedId)
+            } else {
+                repo.refreshAll()
+            }
             _uiState.update { it.copy(isLoading = false) }
         }
     }
