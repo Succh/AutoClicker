@@ -21,6 +21,10 @@ data class UniFeedUiState(
     val entries: List<Entry> = emptyList(),
     val unreadCount: Int = 0,
     val isLoading: Boolean = false,
+    /** Room 文章表是否已完成首次发射，用于区分「尚未加载」与「已加载但为空」 */
+    val hasLoadedEntries: Boolean = false,
+    /** 本地是否已有任意文章（与当前筛选无关），用于刷新空库时展示骨架屏 */
+    val hasLocalEntries: Boolean = false,
     val error: String? = null,
     val selectedFeedId: Long? = null,
     val filterMode: FilterMode = FilterMode.ALL,
@@ -68,13 +72,21 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
                 _uiState.map { it.filterMode },
                 _uiState.map { it.selectedFeedId }
             ) { allEntries, filter, feedId ->
-                when (filter) {
+                val filtered = when (filter) {
                     FilterMode.UNREAD -> allEntries.filter { !it.isRead }
                     FilterMode.STARRED -> allEntries.filter { it.isStarred }
                     FilterMode.ALL -> if (feedId != null) allEntries.filter { it.feedId == feedId } else allEntries
                 }
-            }.collect { filtered ->
-                _uiState.update { it.copy(entries = filtered) }
+                // 同一拍带上「库里有没有文章」，避免空态/骨架屏和列表数据错位
+                filtered to allEntries.isNotEmpty()
+            }.collect { (filtered, hasLocal) ->
+                _uiState.update {
+                    it.copy(
+                        entries = filtered,
+                        hasLoadedEntries = true,
+                        hasLocalEntries = hasLocal
+                    )
+                }
             }
         }
         viewModelScope.launch {

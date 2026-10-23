@@ -251,7 +251,10 @@ private fun MainTabScreen(
                     onMarkRead = onMarkRead,
                     onMarkUnread = onMarkUnread,
                     headerFeed = headerFeed,
-                    headerEntryCount = state.entries.size
+                    headerEntryCount = state.entries.size,
+                    hasLoadedEntries = state.hasLoadedEntries,
+                    hasLocalEntries = state.hasLocalEntries,
+                    onAddFeed = onAddFeed
                 )
             }
             2 -> EntryListScreen(
@@ -263,7 +266,10 @@ private fun MainTabScreen(
                 modifier = Modifier.padding(padding),
                 onRefresh = onRefresh,
                 isRefreshing = state.isLoading,
-                showFilter = false
+                showFilter = false,
+                filterMode = FilterMode.STARRED,
+                hasLoadedEntries = state.hasLoadedEntries,
+                hasLocalEntries = state.hasLocalEntries
             )
             3 -> SettingsScreen(
                 prefs = prefs,
