@@ -33,6 +33,10 @@ object FoloDimens {
     /** 文章卡片顶部小 favicon */
     val EntryFaviconSize = 16.dp
 
+    /** 文章卡片右侧封面尺寸，固定以免滚动时测量抖动 */
+    val EntryCoverWidth = 112.dp
+    val EntryCoverHeight = 84.dp
+
     /** 阅读器图片圆角 */
     val ImageRadius = 12.dp
 
