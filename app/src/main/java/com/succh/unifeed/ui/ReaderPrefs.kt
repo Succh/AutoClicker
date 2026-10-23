@@ -69,12 +69,16 @@ class ReaderPrefs(context: Context) {
             sp.edit().putBoolean(KEY_LIST_SUMMARY, value).apply()
         }
 
-    private val _autoMarkRead = mutableStateOf(sp.getBoolean(KEY_AUTO_READ, true))
-    var autoMarkRead: Boolean
-        get() = _autoMarkRead.value
+    /**
+     * 打开即标记已读。默认关闭，走阅读器停留 2 秒后再标已读。
+     * 旧键 auto_read 仅在新键尚未写入时作为初始值。
+     */
+    private val _markReadOnOpen = mutableStateOf(loadMarkReadOnOpen())
+    var markReadOnOpen: Boolean
+        get() = _markReadOnOpen.value
         set(value) {
-            _autoMarkRead.value = value
-            sp.edit().putBoolean(KEY_AUTO_READ, value).apply()
+            _markReadOnOpen.value = value
+            sp.edit().putBoolean(KEY_MARK_READ_ON_OPEN, value).apply()
         }
 
     /** 自定义 RSSHub 实例地址（null 表示使用内置默认实例策略） */
@@ -114,6 +118,13 @@ class ReaderPrefs(context: Context) {
         return ReaderTheme.entries.firstOrNull { it.name == name } ?: ReaderTheme.LIGHT
     }
 
+    private fun loadMarkReadOnOpen(): Boolean {
+        if (sp.contains(KEY_MARK_READ_ON_OPEN)) {
+            return sp.getBoolean(KEY_MARK_READ_ON_OPEN, false)
+        }
+        return sp.getBoolean(KEY_AUTO_READ, false)
+    }
+
     private companion object {
         const val KEY_SIZE = "font_size"
         const val KEY_LH = "line_height"
@@ -123,6 +134,7 @@ class ReaderPrefs(context: Context) {
         const val KEY_JUSTIFY = "justify_text"
         const val KEY_LIST_SUMMARY = "list_summary"
         const val KEY_AUTO_READ = "auto_read"
+        const val KEY_MARK_READ_ON_OPEN = "mark_read_on_open"
         const val KEY_RSSHUB_INSTANCE = "rsshub_instance"
         const val KEY_AUTO_REFRESH_ENABLED = "auto_refresh_enabled"
         const val KEY_AUTO_REFRESH_INTERVAL_HOURS = "auto_refresh_interval_hours"

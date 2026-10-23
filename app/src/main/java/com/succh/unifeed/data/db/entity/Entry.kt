@@ -18,5 +18,12 @@ data class Entry(
     val isStarred: Boolean = false,
     val fetchedAt: Long = System.currentTimeMillis(),
     /** 封面图 URL，解析自 enclosure / media / 正文首图 */
-    val imageUrl: String? = null
+    val imageUrl: String? = null,
+    /**
+     * 阅读滚动进度，取值 0~1，表示已滚过的可滚动高度比例。
+     * 用比例而非像素，避免字号或窗口变化后进度失真。
+     */
+    val lastReadPosition: Float = 0f,
+    /** 最近一次写入阅读进度的时间戳（epoch millis） */
+    val lastReadAt: Long = 0L
 )

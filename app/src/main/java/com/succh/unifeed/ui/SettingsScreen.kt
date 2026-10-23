@@ -121,7 +121,12 @@ fun SettingsScreen(
 
         Text("列表设置", style = MaterialTheme.typography.titleMedium)
         SwitchSetting("列表显示摘要", prefs.listShowSummary) { prefs.listShowSummary = it }
-        SwitchSetting("打开后自动标记已读", prefs.autoMarkRead) { prefs.autoMarkRead = it }
+        SwitchSetting("打开即标记已读", prefs.markReadOnOpen) { prefs.markReadOnOpen = it}
+        Text(
+            "关闭时，打开文章后停留超过 2 秒才标记已读，快速划过不标。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
 
         HorizontalDivider()
 

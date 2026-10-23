@@ -22,6 +22,8 @@ fun UniFeedApp(
     val state by viewModel.uiState.collectAsState()
     var showDiscover by remember { mutableStateOf(false) }
     var selectedEntry by remember { mutableStateOf<Entry?>(null) }
+    var restoreProgressOnOpen by remember { mutableStateOf(true)}
+    var readerList by remember { mutableStateOf<List<Entry>>(emptyList())}
     var tab by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
     val prefs = remember { ReaderPrefs(context) }
@@ -78,15 +80,16 @@ fun UniFeedApp(
     val entry = selectedEntry
     if (entry != null) {
         val feed = state.feeds.firstOrNull { it.id == entry.feedId }
+        val liveEntry = state.entries.firstOrNull { it.id == entry.id}?: entry
         ReaderScreen(
-            entry = entry,
+            entry = liveEntry,
             prefs = prefs,
             feedTitle = feed?.title,
             feedFaviconUrl = feed?.faviconUrl,
-            contentIncomplete = viewModel.isContentIncomplete(entry),
+            contentIncomplete = viewModel.isContentIncomplete(liveEntry),
             isLoadingFullContent = state.isLoadingFullContent,
             onLoadFullContent = {
-                viewModel.loadFullContent(entry) { updated -> selectedEntry = updated }
+                viewModel.loadFullContent(liveEntry) { updated -> selectedEntry = updated}
             },
             onBack = { selectedEntry = null },
             onToggleStar = { e, s -> viewModel.setStarred(e, s) },
@@ -101,7 +104,15 @@ fun UniFeedApp(
                     putExtra(Intent.EXTRA_TEXT, "${e.title}\n${e.link}")
                 }
                 runCatching { context.startActivity(Intent.createChooser(sendIntent, "分享")) }
-            }
+            },
+            listEntries = readerList,
+            restoreProgress = restoreProgressOnOpen,
+            onSwitchEntry = { next ->
+                restoreProgressOnOpen = false
+                selectedEntry = next
+            },
+            onSaveProgress = { id, position -> viewModel.saveReadProgress(id, position) },
+            onMarkRead = { e -> if (!e.isRead) viewModel.markRead(e) }
         )
     } else {
         MainTabScreen(
@@ -116,9 +127,10 @@ fun UniFeedApp(
             },
             onAddFeed = { showDiscover = true },
             onDeleteFeed = viewModel::deleteFeed,
-            onEntryClick = { entry ->
-                selectedEntry = entry
-                if (prefs.autoMarkRead) viewModel.markRead(entry)
+            onEntryClick = { clicked ->
+                restoreProgressOnOpen = true
+                readerList = if (tab == 2) state.entries.filter { it.isStarred } else state.entries
+                selectedEntry = clicked
             },
             onStarToggle = viewModel::setStarred,
             onFilter = viewModel::setFilter,

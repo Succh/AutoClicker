@@ -262,6 +262,10 @@ class UniFeedViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch { repo.markRead(entry) }
     }
 
+    fun saveReadProgress(entryId: Long, position: Float) {
+        viewModelScope.launch { repo.saveReadProgress(entryId, position) }
+    }
+
     fun markUnread(entry: Entry) {
         viewModelScope.launch { repo.markUnread(entry) }
     }

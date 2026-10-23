@@ -55,6 +55,9 @@ interface EntryDao {
     @Query("UPDATE entries SET isStarred = :starred WHERE id = :id")
     suspend fun setStarred(id: Long, starred: Boolean)
 
+    @Query("UPDATE entries SET lastReadPosition = :position, lastReadAt = :readAt WHERE id = :id")
+    suspend fun updateReadProgress(id: Long, position: Float, readAt: Long)
+
     @Query("SELECT COUNT(*) FROM entries WHERE isRead = 0")
     fun observeUnreadCount(): Flow<Int>
 
