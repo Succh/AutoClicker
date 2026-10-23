@@ -387,6 +387,15 @@ class FeedRepository(
         entryDao.setStarred(entry.id, starred)
     }
 
+    /** 节流后由阅读器调用，写入 0~1 滚动比例与时间戳 */
+    suspend fun saveReadProgress(entryId: Long, position: Float) {
+        entryDao.updateReadProgress(
+            id = entryId,
+            position = position.coerceIn(0f, 1f),
+            readAt = System.currentTimeMillis()
+        )
+    }
+
     suspend fun markAllRead(feedId: Long) {
         entryDao.markAllRead(feedId)
         feedDao.updateUnreadCount(feedId)

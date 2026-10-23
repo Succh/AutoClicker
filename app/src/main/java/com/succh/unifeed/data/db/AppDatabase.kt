@@ -13,7 +13,7 @@ import com.succh.unifeed.data.db.entity.Folder
 
 @Database(
     entities = [Feed::class, Entry::class, Folder::class],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -30,5 +30,13 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE feeds ADD COLUMN lastRefreshError TEXT")
             }
         }
+
+    /** v2 → v3：阅读进度比例 + 最近阅读时间 */
+    val MIGRATION_2_3: Migration = object : Migration(2, 3) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE entries ADD COLUMN lastReadPosition REAL NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE entries ADD COLUMN lastReadAt INTEGER NOT NULL DEFAULT 0")
+        }
+    }
     }
 }
