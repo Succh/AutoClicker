@@ -22,6 +22,10 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10'
+      - name: Restore fixed debug keystore
+        run: |
+          mkdir -p ~/.android
+          echo "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" | base64 -d > ~/.android/debug.keystore
       - name: Get version
         id: version
         run: echo "tag=v0.1.${{ github.run_number }}" >> $GITHUB_OUTPUT
