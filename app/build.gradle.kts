@@ -22,6 +22,20 @@ android {
         }
     }
 
+    // 固定调试签名：CI 从 Secret 还原密钥到 signing/unifeed-debug.keystore 后用它签名，
+    // 保证每个版本签名一致、可直接覆盖安装；本地没有该文件时保持默认调试签名不受影响
+    signingConfigs {
+        getByName("debug") {
+            val ksFile = rootProject.file("signing/unifeed-debug.keystore")
+            if (ksFile.exists()) {
+                storeFile = ksFile
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
